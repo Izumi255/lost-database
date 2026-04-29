@@ -47,28 +47,28 @@ VALUES (5, 3, 40, 100, 20.0, 3200.0, 256.0, 'Almost Done', '2026-03-06 22:00:00'
 -- 3. Предмети інвентарю (inventory_items) — 8 записів
 -- Зв'язок: players 1:N inventory_items
 -- ============================================================
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (1, 'weapon', 'Мачете', 1, 50);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (1, 'consumable', 'Аптечка', 3, 30);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (1, 'key', 'Ключ від бункера', 1, 100);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (2, 'weapon', 'Палка', 1, 20);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (2, 'consumable', 'Банан', 5, 10);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (3, 'consumable', 'Аптечка', 2, 30);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (4, 'consumable', 'Кокос', 8, 5);
 
-INSERT INTO inventory_items (player_id, item_type, item_name, quantity, value)
+INSERT INTO inventory_items (player_id, item_type, item_name, quantity, item_value)
 VALUES (5, 'weapon', 'Ніж', 1, 40);
 
 -- ============================================================
@@ -202,3 +202,4 @@ VALUES (3, 1, 64.0, 576.0, 100, TRUE, '2026-03-12 15:01:00');
 
 INSERT INTO session_players (session_id, player_id, position_x, position_y, health, is_alive, joined_at)
 VALUES (3, 4, 64.0, 576.0, 100, TRUE, '2026-03-12 15:02:00');
+

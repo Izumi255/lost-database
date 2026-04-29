@@ -1,5 +1,5 @@
 -- ============================================================
--- DDL.sql — Створення структури БД для гри "LOST"
+-- V1__create_schema.sql — Flyway Migration: Створення структури БД
 -- СУБД: H2 (реляційна, вбудована)
 -- ============================================================
 
@@ -11,7 +11,7 @@
 --   2НФ: всі неключові атрибути залежать від повного PK (id)
 --   3НФ: немає транзитивних залежностей між неключовими атрибутами
 -- ============================================================
-CREATE TABLE IF NOT EXISTS players (
+CREATE TABLE players (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     username        VARCHAR(50) NOT NULL UNIQUE,
     password_hash   VARCHAR(255) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS players (
 --   3НФ: немає транзитивних залежностей
 -- Зв'язок: players 1:N game_saves (один гравець — багато збережень)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS game_saves (
+CREATE TABLE game_saves (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     player_id       BIGINT NOT NULL,
     current_level   INT NOT NULL,
@@ -55,13 +55,13 @@ CREATE TABLE IF NOT EXISTS game_saves (
 --   3НФ: немає транзитивних залежностей
 -- Зв'язок: players 1:N inventory_items
 -- ============================================================
-CREATE TABLE IF NOT EXISTS inventory_items (
+CREATE TABLE inventory_items (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     player_id       BIGINT NOT NULL,
     item_type       VARCHAR(50) NOT NULL,
     item_name       VARCHAR(100) NOT NULL,
     quantity        INT DEFAULT 1,
-    item_value           INT DEFAULT 0,
+    item_value         INT DEFAULT 0,
     CONSTRAINT fk_item_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
 );
 
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
 --   3НФ: score, level_completed, completion_time_sec — незалежні
 -- Зв'язок: players 1:N leaderboard_entries
 -- ============================================================
-CREATE TABLE IF NOT EXISTS leaderboard_entries (
+CREATE TABLE leaderboard_entries (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
     player_id           BIGINT NOT NULL,
     score               INT NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS leaderboard_entries (
 --        транзитивно (обидва описують одну сутність)
 -- Зв'язок: players 1:N player_achievements
 -- ============================================================
-CREATE TABLE IF NOT EXISTS player_achievements (
+CREATE TABLE player_achievements (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
     player_id         BIGINT NOT NULL,
     achievement_code  VARCHAR(50) NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS player_achievements (
 --   2НФ: повна залежність від PK
 --   3НФ: немає транзитивних залежностей
 -- ============================================================
-CREATE TABLE IF NOT EXISTS npcs (
+CREATE TABLE npcs (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     npc_name        VARCHAR(50) NOT NULL,
     portrait_path   VARCHAR(255),
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS npcs (
 --   3НФ: немає транзитивних залежностей
 -- Зв'язок: npcs 1:N dialogue_lines (один NPC — багато реплік)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS dialogue_lines (
+CREATE TABLE dialogue_lines (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
     npc_id            BIGINT NOT NULL,
     line_order        INT NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS dialogue_lines (
 --   3НФ: немає транзитивних залежностей
 -- Зв'язок: players 1:N game_sessions (один гравець-хост)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS game_sessions (
+CREATE TABLE game_sessions (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_code      VARCHAR(10) NOT NULL UNIQUE,
     host_player_id    BIGINT NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 --   game_sessions 1:N session_players
 --   players 1:N session_players
 -- ============================================================
-CREATE TABLE IF NOT EXISTS session_players (
+CREATE TABLE session_players (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_id      BIGINT NOT NULL,
     player_id       BIGINT NOT NULL,
@@ -187,15 +187,12 @@ CREATE TABLE IF NOT EXISTS session_players (
     CONSTRAINT fk_sp_player FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
 );
 
--- ============================================================
--- Індекси для оптимізації запитів
--- ============================================================
-CREATE INDEX IF NOT EXISTS idx_saves_player ON game_saves(player_id);
-CREATE INDEX IF NOT EXISTS idx_inventory_player ON inventory_items(player_id);
-CREATE INDEX IF NOT EXISTS idx_leaderboard_player ON leaderboard_entries(player_id);
-CREATE INDEX IF NOT EXISTS idx_leaderboard_score ON leaderboard_entries(score DESC);
-CREATE INDEX IF NOT EXISTS idx_achievements_player ON player_achievements(player_id);
-CREATE INDEX IF NOT EXISTS idx_dialogue_npc ON dialogue_lines(npc_id);
-CREATE INDEX IF NOT EXISTS idx_sp_session ON session_players(session_id);
-CREATE INDEX IF NOT EXISTS idx_sp_player ON session_players(player_id);
+-- Індекси
+CREATE INDEX idx_saves_player ON game_saves(player_id);
+CREATE INDEX idx_inventory_player ON inventory_items(player_id);
+CREATE INDEX idx_leaderboard_player ON leaderboard_entries(player_id);
+CREATE INDEX idx_achievements_player ON player_achievements(player_id);
+CREATE INDEX idx_dialogue_npc ON dialogue_lines(npc_id);
+CREATE INDEX idx_sp_session ON session_players(session_id);
+CREATE INDEX idx_sp_player ON session_players(player_id);
 

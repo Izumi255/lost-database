@@ -17,7 +17,7 @@ WHERE p.username = 'jack_shephard'
 ORDER BY gs.saved_at DESC;
 
 -- 3. Показати інвентар гравця
-SELECT ii.item_name, ii.item_type, ii.quantity, ii.value
+SELECT ii.item_name, ii.item_type, ii.quantity, ii.item_value
 FROM inventory_items ii
 JOIN players p ON ii.player_id = p.id
 WHERE p.username = 'jack_shephard';
@@ -52,3 +52,4 @@ FROM player_achievements pa
 JOIN players p ON pa.player_id = p.id
 WHERE p.username = 'jack_shephard'
 ORDER BY pa.unlocked_at;
+
