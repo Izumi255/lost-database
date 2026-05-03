@@ -18,7 +18,7 @@
         <flyway.version>10.8.1</flyway.version>
         <h2.version>2.2.224</h2.version>
         <lombok.version>1.18.36</lombok.version>
-        <spotless.version>2.43.0</spotless.version>
+        <spotless.version>2.44.4</spotless.version>
         <sonar.version>3.11.0.3922</sonar.version>
     </properties>
 
@@ -96,7 +96,7 @@
                 <configuration>
                     <java>
                         <googleJavaFormat>
-                            <version>1.19.2</version>
+                            <version>1.27.0</version>
                             <style>AOSP</style> <!-- AOSP = 4 spaces indent (Google default = 2) -->
                         </googleJavaFormat>
                         <removeUnusedImports/>
