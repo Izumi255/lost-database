@@ -10,6 +10,6 @@ public class GameSessionDao extends GenericDao<GameSession, Long> {
     }
 
     public List<GameSession> findByHostId(Long hostId) {
-        return findByField("host_id", hostId);
+        return findByField("host_player_id", hostId);
     }
 }

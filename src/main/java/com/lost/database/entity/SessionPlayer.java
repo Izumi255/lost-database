@@ -11,7 +11,7 @@ public class SessionPlayer {
     private double positionX;
     private double positionY;
     private int health = 100;
-    private boolean alive = true;
+    private boolean isAlive = true;
     private LocalDateTime joinedAt = LocalDateTime.now();
 
     public SessionPlayer() {}
@@ -65,11 +65,11 @@ public class SessionPlayer {
     }
 
     public boolean isAlive() {
-        return alive;
+        return isAlive;
     }
 
     public void setAlive(boolean alive) {
-        this.alive = alive;
+        this.isAlive = alive;
     }
 
     public LocalDateTime getJoinedAt() {
