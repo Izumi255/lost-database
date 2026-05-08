@@ -12,4 +12,8 @@ public class PlayerDao extends GenericDao<Player, Long> {
     public Optional<Player> findByUsername(String username) {
         return findByField("username", username).stream().findFirst();
     }
+
+    public Optional<Player> findByEmail(String email) {
+        return findByField("email", email).stream().findFirst();
+    }
 }

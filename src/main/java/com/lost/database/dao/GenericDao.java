@@ -69,6 +69,18 @@ public abstract class GenericDao<T, ID> {
         executeUpdate(sql, List.of(id));
     }
 
+    /**
+     * Оновити існуючу сутність в базі даних.
+     *
+     * @param entity сутність з встановленим ID
+     */
+    public void update(T entity) {
+        String sql = buildUpdateSql();
+        List<Object> values = extractEntityValues(entity, false);
+        values.add(extractId(entity));
+        executeUpdate(sql, values);
+    }
+
     protected List<T> executeQuery(String sql, ParameterSetter parameterSetter) {
         try (Connection connection = connectionPool.getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {

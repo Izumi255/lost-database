@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<StackPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="com.lost.database.controller.LoginController">
+
+    <!-- Фон -->
+    <AnchorPane style="-fx-background-color: linear-gradient(to bottom, #0d1117, #161b22, #1a1a2e);" />
+
+    <VBox alignment="CENTER" spacing="20">
+        <Text style="-fx-fill: white; -fx-font-family: 'Impact'; -fx-font-size: 80px;
+                      -fx-effect: dropshadow(gaussian, rgba(0,200,100,0.4), 20, 0, 0, 4);"
+              text="LOST" />
+        <Text style="-fx-fill: rgba(200,200,200,0.6); -fx-font-size: 14px; -fx-font-style: italic;"
+              text="Database Management System" />
+
+        <!-- Login Box -->
+        <VBox fx:id="authBox" alignment="CENTER" spacing="12" maxWidth="320"
+              style="-fx-background-color: rgba(255,255,255,0.05); -fx-padding: 30;
+                     -fx-background-radius: 12; -fx-border-color: rgba(100,150,200,0.2);
+                     -fx-border-radius: 12;">
+
+            <Label text="АВТОРИЗАЦІЯ" style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;" />
+
+            <TextField fx:id="usernameField" promptText="Логін"
+                       style="-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.5);
+                              -fx-text-fill: white; -fx-prompt-text-fill: #888;
+                              -fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;
+                              -fx-background-radius: 8; -fx-padding: 10;" />
+            <PasswordField fx:id="passwordField" promptText="Пароль"
+                           style="-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.5);
+                                  -fx-text-fill: white; -fx-prompt-text-fill: #888;
+                                  -fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;
+                                  -fx-background-radius: 8; -fx-padding: 10;" />
+
+            <Button fx:id="loginBtn" text="УВІЙТИ" onAction="#onLogin"
+                    style="-fx-background-color: #00ffaa; -fx-text-fill: #0d1117;
+                           -fx-font-weight: bold; -fx-font-size: 14px;
+                           -fx-min-width: 200; -fx-padding: 10;
+                           -fx-background-radius: 8; -fx-cursor: hand;" />
+
+            <Label fx:id="statusLabel" text="" style="-fx-text-fill: #ff3333; -fx-font-size: 12px;" />
+
+            <Hyperlink text="Немає акаунту? Реєстрація" onAction="#onShowRegister"
+                       style="-fx-text-fill: #8888aa;" />
+        </VBox>
+
+        <!-- Register Box (Hidden by default) -->
+        <VBox fx:id="regBox" alignment="CENTER" spacing="12" maxWidth="320"
+              visible="false" managed="false"
+              style="-fx-background-color: rgba(255,255,255,0.05); -fx-padding: 30;
+                     -fx-background-radius: 12; -fx-border-color: rgba(100,150,200,0.2);
+                     -fx-border-radius: 12;">
+
+            <Label text="РЕЄСТРАЦІЯ" style="-fx-text-fill: white; -fx-font-size: 18px; -fx-font-weight: bold;" />
+
+            <TextField fx:id="regUsernameField" promptText="Логін"
+                       style="-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.5);
+                              -fx-text-fill: white; -fx-prompt-text-fill: #888;
+                              -fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;
+                              -fx-background-radius: 8; -fx-padding: 10;" />
+            <PasswordField fx:id="regPasswordField" promptText="Пароль (мін. 4 символи)"
+                           style="-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.5);
+                                  -fx-text-fill: white; -fx-prompt-text-fill: #888;
+                                  -fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;
+                                  -fx-background-radius: 8; -fx-padding: 10;" />
+            <TextField fx:id="regEmailField" promptText="Email (опціонально)"
+                       style="-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.5);
+                              -fx-text-fill: white; -fx-prompt-text-fill: #888;
+                              -fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;
+                              -fx-background-radius: 8; -fx-padding: 10;" />
+
+            <!-- Поле коду (приховане, з'являється після надсилання) -->
+            <TextField fx:id="verificationCodeField" promptText="Введіть 6-значний код з пошти"
+                       visible="false" managed="false"
+                       style="-fx-font-size: 16px; -fx-background-color: rgba(0,0,0,0.5);
+                              -fx-text-fill: #00ffaa; -fx-prompt-text-fill: #555;
+                              -fx-border-color: rgba(0,255,170,0.4); -fx-border-radius: 8;
+                              -fx-background-radius: 8; -fx-padding: 10; -fx-alignment: center;" />
+
+            <Button fx:id="regSubmitBtn" text="СТВОРИТИ АКАУНТ" onAction="#onRegister"
+                    style="-fx-background-color: #00ffaa; -fx-text-fill: #0d1117;
+                           -fx-font-weight: bold; -fx-font-size: 14px;
+                           -fx-min-width: 200; -fx-padding: 10;
+                           -fx-background-radius: 8; -fx-cursor: hand;" />
+
+            <!-- Кнопка підтвердження коду (прихована) -->
+            <Button fx:id="confirmCodeBtn" text="ПІДТВЕРДИТИ КОД" onAction="#onConfirmCode"
+                    visible="false" managed="false"
+                    style="-fx-background-color: #00ccff; -fx-text-fill: #0d1117;
+                           -fx-font-weight: bold; -fx-font-size: 14px;
+                           -fx-min-width: 200; -fx-padding: 10;
+                           -fx-background-radius: 8; -fx-cursor: hand;" />
+
+            <Label fx:id="regStatusLabel" text="" style="-fx-text-fill: #ff3333; -fx-font-size: 12px;" />
+
+            <Hyperlink text="Назад до входу" onAction="#onCancelRegister"
+                       style="-fx-text-fill: #8888aa;" />
+        </VBox>
+    </VBox>
+</StackPane>
