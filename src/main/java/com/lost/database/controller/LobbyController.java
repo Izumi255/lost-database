@@ -44,6 +44,8 @@ public class LobbyController {
     private VBox optionsPanel;
     private VBox joinPanel;
     private VBox createPanel;
+    private VBox savesPanel;
+    private VBox multiplayerPanel;
 
     public StackPane buildView(Player player) {
         this.currentPlayer = player;
@@ -68,10 +70,13 @@ public class LobbyController {
         menuBox.setPadding(new Insets(0, 0, 50, 0));
 
         Button btnNewGame = createTextButton("NEW GAME");
-        btnNewGame.setOnAction(e -> showCreatePanel());
+        btnNewGame.setOnAction(e -> startCutscene());
 
         Button btnContinue = createTextButton("CONTINUE");
-        btnContinue.setOnAction(e -> showJoinPanel());
+        btnContinue.setOnAction(e -> showSavesPanel());
+
+        Button btnMultiplayer = createTextButton("MULTIPLAYER");
+        btnMultiplayer.setOnAction(e -> showMultiplayerPanel());
 
         Button btnLeaderboard = createTextButton("LEADERBOARD");
         btnLeaderboard.setOnAction(e -> showLeaderboard());
@@ -82,7 +87,14 @@ public class LobbyController {
         Button btnQuit = createTextButton("QUIT");
         btnQuit.setOnAction(e -> onLogout());
 
-        menuBox.getChildren().addAll(btnNewGame, btnContinue, btnLeaderboard, btnOptions, btnQuit);
+        menuBox.getChildren()
+                .addAll(
+                        btnNewGame,
+                        btnContinue,
+                        btnMultiplayer,
+                        btnLeaderboard,
+                        btnOptions,
+                        btnQuit);
 
         // Анімація входу
         menuBox.setOpacity(0);
@@ -105,6 +117,8 @@ public class LobbyController {
         buildOptionsPanel();
         buildJoinPanel();
         buildCreatePanel();
+        buildSavesPanel();
+        buildMultiplayerPanel();
 
         // 5. Музика
         setupMusic();
@@ -377,33 +391,87 @@ public class LobbyController {
 
     private void buildCreatePanel() {
         createPanel = createOverlayPanel("NEW GAME");
+        createPanel.setMaxSize(520, 550);
 
-        Label infoLabel = new Label("CREATE A NEW SESSION");
-        infoLabel.setFont(loadRetroFont(12));
-        infoLabel.setTextFill(Color.LIGHTGRAY);
+        String fieldStyle =
+                "-fx-font-size: 14px; -fx-background-color: rgba(0,0,0,0.6);"
+                        + "-fx-text-fill: white; -fx-prompt-text-fill: #666;"
+                        + "-fx-border-color: rgba(100,150,200,0.3); -fx-border-radius: 8;"
+                        + "-fx-background-radius: 8; -fx-padding: 10;";
+
+        // ── Ім'я гравця ──
+        Label nameLabel = new Label("PLAYER NAME");
+        nameLabel.setFont(loadRetroFont(10));
+        nameLabel.setTextFill(Color.LIGHTGRAY);
+
+        TextField nameField = new TextField(currentPlayer.getUsername());
+        nameField.setStyle(fieldStyle);
+        nameField.setMaxWidth(350);
+
+        // ── Складність ──
+        Label diffLabel = new Label("DIFFICULTY");
+        diffLabel.setFont(loadRetroFont(10));
+        diffLabel.setTextFill(Color.LIGHTGRAY);
+
+        ComboBox<String> diffCombo = new ComboBox<>();
+        diffCombo.getItems().addAll("EASY", "NORMAL", "HARD", "NIGHTMARE");
+        diffCombo.setValue("NORMAL");
+        diffCombo.setStyle(fieldStyle);
+        diffCombo.setMaxWidth(350);
+
+        // ── Кількість гравців ──
+        Label playersLabel = new Label("MAX PLAYERS");
+        playersLabel.setFont(loadRetroFont(10));
+        playersLabel.setTextFill(Color.LIGHTGRAY);
+
+        ComboBox<String> playersCombo = new ComboBox<>();
+        playersCombo.getItems().addAll("1 (SOLO)", "2", "3", "4");
+        playersCombo.setValue("4");
+        playersCombo.setStyle(fieldStyle);
+        playersCombo.setMaxWidth(350);
+
+        // ── Код для мультиплеєру ──
+        Label codeTitle = new Label("SESSION CODE");
+        codeTitle.setFont(loadRetroFont(10));
+        codeTitle.setTextFill(Color.LIGHTGRAY);
 
         Label codeLabel = new Label("");
-        codeLabel.setFont(loadRetroFont(18));
+        codeLabel.setFont(loadRetroFont(22));
         codeLabel.setTextFill(Color.rgb(0, 255, 170));
 
         Label statusLabel = new Label("");
-        statusLabel.setFont(loadRetroFont(10));
+        statusLabel.setFont(loadRetroFont(9));
 
-        Button btnCreate = createTextButton("CREATE");
+        // ── Кнопки ──
+        Button btnCreate = createTextButton("CREATE WORLD");
         btnCreate.setTextFill(Color.rgb(0, 255, 170));
         btnCreate.setOnAction(
                 e -> {
                     String code = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+                    String playerName = nameField.getText().trim();
+                    String diff = diffCombo.getValue();
+                    int maxPlayers =
+                            playersCombo.getValue().startsWith("1")
+                                    ? 1
+                                    : Integer.parseInt(playersCombo.getValue().trim());
+
+                    if (playerName.isEmpty()) {
+                        statusLabel.setTextFill(Color.rgb(255, 80, 80));
+                        statusLabel.setText("ENTER PLAYER NAME!");
+                        return;
+                    }
+
                     statusLabel.setTextFill(Color.YELLOW);
                     statusLabel.setText("CREATING...");
+                    btnCreate.setDisable(true);
 
                     new Thread(
                                     () -> {
                                         GameSession session = new GameSession();
                                         session.setSessionCode(code);
                                         session.setHostPlayerId(currentPlayer.getId());
-                                        session.setMaxPlayers(4);
-                                        session.setStatus("WAITING");
+                                        session.setMaxPlayers(maxPlayers);
+                                        session.setStatus("WAITING | " + diff);
                                         sessionDao.save(session);
 
                                         SessionPlayer sp = new SessionPlayer();
@@ -413,22 +481,112 @@ public class LobbyController {
 
                                         Platform.runLater(
                                                 () -> {
-                                                    codeLabel.setText("CODE: " + code);
+                                                    codeLabel.setText(code);
                                                     statusLabel.setTextFill(Color.rgb(0, 255, 170));
-                                                    statusLabel.setText(
-                                                            "SHARE THIS CODE WITH FRIENDS!");
+                                                    statusLabel.setText("SHARE CODE WITH FRIENDS!");
+                                                    btnCreate.setText("START ADVENTURE ▶");
+                                                    btnCreate.setDisable(false);
+                                                    btnCreate.setOnAction(ev -> startCutscene());
                                                 });
                                     })
                             .start();
                 });
 
         Button btnBack = createTextButton("BACK");
-        btnBack.setOnAction(e -> hidePanel(createPanel));
+        btnBack.setOnAction(
+                e -> {
+                    codeLabel.setText("");
+                    statusLabel.setText("");
+                    hidePanel(createPanel);
+                });
 
-        createPanel.getChildren().addAll(infoLabel, btnCreate, codeLabel, statusLabel, btnBack);
+        createPanel
+                .getChildren()
+                .addAll(
+                        nameLabel,
+                        nameField,
+                        diffLabel,
+                        diffCombo,
+                        playersLabel,
+                        playersCombo,
+                        codeTitle,
+                        codeLabel,
+                        btnCreate,
+                        statusLabel,
+                        btnBack);
         createPanel.setVisible(false);
         createPanel.setOpacity(0);
         rootStack.getChildren().add(createPanel);
+    }
+
+    private void buildSavesPanel() {
+        savesPanel = createOverlayPanel("SAVED GAMES");
+
+        VBox listBox = new VBox(10);
+        listBox.setAlignment(Pos.CENTER);
+
+        // Завантажити збережені сесії поточного гравця
+        List<GameSession> sessions = sessionDao.findByPlayer(currentPlayer.getId());
+
+        if (sessions.isEmpty()) {
+            Label empty = new Label("NO SAVES FOUND");
+            empty.setFont(loadRetroFont(12));
+            empty.setTextFill(Color.GRAY);
+            listBox.getChildren().add(empty);
+        } else {
+            for (GameSession s : sessions) {
+                String label =
+                        s.getSessionCode()
+                                + " | "
+                                + s.getStatus()
+                                + " | "
+                                + s.getCreatedAt().toString().substring(0, 10);
+                Button btnLoad = createTextButton(label);
+                btnLoad.setFont(loadRetroFont(11));
+                btnLoad.setOnAction(
+                        e -> {
+                            hidePanel(savesPanel);
+                            startCutscene();
+                        });
+                listBox.getChildren().add(btnLoad);
+            }
+        }
+
+        Button btnBack = createTextButton("BACK");
+        btnBack.setOnAction(e -> hidePanel(savesPanel));
+
+        savesPanel.getChildren().addAll(listBox, btnBack);
+        savesPanel.setVisible(false);
+        savesPanel.setOpacity(0);
+        rootStack.getChildren().add(savesPanel);
+    }
+
+    private void buildMultiplayerPanel() {
+        multiplayerPanel = createOverlayPanel("MULTIPLAYER");
+
+        Button btnCreateServer = createTextButton("CREATE SERVER");
+        btnCreateServer.setTextFill(Color.rgb(0, 255, 170));
+        btnCreateServer.setOnAction(
+                e -> {
+                    hidePanel(multiplayerPanel);
+                    showCreatePanel();
+                });
+
+        Button btnJoinServer = createTextButton("JOIN SERVER");
+        btnJoinServer.setTextFill(Color.rgb(100, 200, 255));
+        btnJoinServer.setOnAction(
+                e -> {
+                    hidePanel(multiplayerPanel);
+                    showJoinPanel();
+                });
+
+        Button btnBack = createTextButton("BACK");
+        btnBack.setOnAction(e -> hidePanel(multiplayerPanel));
+
+        multiplayerPanel.getChildren().addAll(btnCreateServer, btnJoinServer, btnBack);
+        multiplayerPanel.setVisible(false);
+        multiplayerPanel.setOpacity(0);
+        rootStack.getChildren().add(multiplayerPanel);
     }
 
     // ═══════════════════════════════════════════════════════
@@ -538,8 +696,52 @@ public class LobbyController {
         showPanel(joinPanel);
     }
 
-    private void showCreatePanel() {
+    public void showCreatePanel() {
         showPanel(createPanel);
+    }
+
+    private void showSavesPanel() {
+        showPanel(savesPanel);
+    }
+
+    private void showMultiplayerPanel() {
+        showPanel(multiplayerPanel);
+    }
+
+    private void startCutscene() {
+        if (musicPlayer != null) {
+            musicPlayer.pause();
+        }
+
+        // Зберігаємо посилання на сцену ДО переключення
+        javafx.scene.Scene scene = rootStack.getScene();
+
+        CutsceneController cutscene = new CutsceneController();
+        StackPane cutsceneRoot =
+                cutscene.buildView(
+                        currentPlayer.getUsername(),
+                        () -> {
+                            javafx.application.Platform.runLater(
+                                    () -> {
+                                        try {
+                                            javafx.fxml.FXMLLoader loader =
+                                                    new javafx.fxml.FXMLLoader(
+                                                            getClass()
+                                                                    .getResource(
+                                                                            "/fxml/game_scene.fxml"));
+                                            javafx.scene.Parent gameRoot = loader.load();
+                                            scene.setRoot(gameRoot);
+                                        } catch (Exception ex) {
+                                            ex.printStackTrace();
+                                            // Fallback: повернутися в лобі
+                                            LobbyController newLobby = new LobbyController();
+                                            StackPane newRoot = newLobby.buildView(currentPlayer);
+                                            scene.setRoot(newRoot);
+                                        }
+                                    });
+                        });
+
+        scene.setRoot(cutsceneRoot);
     }
 
     // ═══════════════════════════════════════════════════════

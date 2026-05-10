@@ -2,3 +2,51 @@
     -fx-font-family: 'Segoe UI', 'Arial', sans-serif;
     -fx-background-color: #0d1117;
 }
+
+/* ── ComboBox dark dropdown ── */
+.combo-box-popup .list-view {
+    -fx-background-color: rgba(20, 25, 30, 0.95);
+    -fx-border-color: rgba(100, 150, 200, 0.3);
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #cccccc;
+    -fx-font-size: 14px;
+    -fx-padding: 8 12;
+}
+
+.combo-box-popup .list-view .list-cell:hover {
+    -fx-background-color: rgba(0, 255, 170, 0.15);
+    -fx-text-fill: #00ffaa;
+}
+
+.combo-box-popup .list-view .list-cell:selected {
+    -fx-background-color: rgba(0, 255, 170, 0.25);
+    -fx-text-fill: #00ffaa;
+}
+
+/* ── TextField dark styling ── */
+.text-field {
+    -fx-background-color: rgba(0, 0, 0, 0.6);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: #666;
+    -fx-border-color: rgba(100, 150, 200, 0.3);
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+/* ── ComboBox button area ── */
+.combo-box .cell {
+    -fx-text-fill: white;
+}
+
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.combo-box .arrow {
+    -fx-background-color: #aaa;
+}

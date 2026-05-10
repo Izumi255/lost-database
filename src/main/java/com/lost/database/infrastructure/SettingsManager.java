@@ -72,4 +72,29 @@ public class SettingsManager {
     public void setFullscreen(boolean fullscreen) {
         props.setProperty("fullscreen", String.valueOf(fullscreen));
     }
+
+    // --- Auto-login (saved account) ---
+    public String getSavedUsername() {
+        return props.getProperty("saved_username", "");
+    }
+
+    public String getSavedPassword() {
+        return props.getProperty("saved_password", "");
+    }
+
+    public void saveAccount(String username, String password) {
+        props.setProperty("saved_username", username);
+        props.setProperty("saved_password", password);
+        save();
+    }
+
+    public void clearAccount() {
+        props.remove("saved_username");
+        props.remove("saved_password");
+        save();
+    }
+
+    public boolean hasAutoLogin() {
+        return !getSavedUsername().isEmpty() && !getSavedPassword().isEmpty();
+    }
 }

@@ -3,6 +3,7 @@ package com.lost.database.controller;
 import com.lost.database.app.LostDatabaseApp;
 import com.lost.database.dao.PlayerDao;
 import com.lost.database.entity.Player;
+import com.lost.database.infrastructure.SettingsManager;
 import com.lost.database.service.AuthService;
 import java.util.Optional;
 import javafx.application.Platform;
@@ -36,6 +37,7 @@ public class LoginController {
 
     private AuthService authService;
     private PlayerDao playerDao;
+    private SettingsManager settings;
 
     // Дані для очікуючої верифікації
     private String pendingVerificationCode;
@@ -47,6 +49,35 @@ public class LoginController {
     public void initialize() {
         authService = new AuthService(LostDatabaseApp.getConnectionPool());
         playerDao = new PlayerDao(LostDatabaseApp.getConnectionPool());
+        settings = new SettingsManager();
+
+        // Auto-login if saved
+        if (settings.hasAutoLogin()) {
+            String user = settings.getSavedUsername();
+            String pass = settings.getSavedPassword();
+            usernameField.setText(user);
+            passwordField.setText(pass);
+            Platform.runLater(
+                    () -> {
+                        new Thread(
+                                        () -> {
+                                            Optional<Player> result = authService.login(user, pass);
+                                            Platform.runLater(
+                                                    () -> {
+                                                        if (result.isPresent()) {
+                                                            goToLobby(result.get());
+                                                        } else {
+                                                            settings.clearAccount();
+                                                            showStatus(
+                                                                    statusLabel,
+                                                                    "Збережений акаунт недійсний",
+                                                                    "#ff9900");
+                                                        }
+                                                    });
+                                        })
+                                .start();
+                    });
+        }
     }
 
     @FXML
@@ -67,6 +98,7 @@ public class LoginController {
                             Platform.runLater(
                                     () -> {
                                         if (result.isPresent()) {
+                                            settings.saveAccount(user, pass);
                                             goToLobby(result.get());
                                         } else {
                                             showStatus(
