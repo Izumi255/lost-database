@@ -1,0 +1,98 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: windows-installer
+            extension: msi
+          - os: macos-latest
+            artifact: macos-installer
+            extension: dmg
+          - os: ubuntu-latest
+            artifact: linux-installer
+            extension: deb
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Build fat JAR
+        run: mvn clean package -DskipTests
+
+      - name: Create installer with jpackage
+        shell: bash
+        run: |
+          # Find the shaded JAR
+          JAR_FILE=$(ls target/lost-game-database-*.jar | grep -v original | head -1)
+          echo "Using JAR: $JAR_FILE"
+          
+          jpackage \
+            --input target \
+            --main-jar $(basename "$JAR_FILE") \
+            --main-class com.lost.database.app.Launcher \
+            --name "LOST" \
+            --app-version "${GITHUB_REF_NAME#v}" \
+            --vendor "Izumi255" \
+            --description "LOST - Database Management System Game" \
+            --type ${{ matrix.extension }} \
+            --dest dist \
+            --java-options "--enable-preview" \
+            --java-options "--add-modules=javafx.controls,javafx.fxml,javafx.media" \
+            --java-options "-Dfile.encoding=UTF-8"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/*.${{ matrix.extension }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        with:
+          path: installers
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "LOST ${{ github.ref_name }}"
+          body: |
+            ## Що нового у ${{ github.ref_name }}
+
+            Опис змін цього релізу.
+
+            ## Завантаження
+
+            | Операційна система | Файл |
+            |---|---|
+            | Windows 10/11 | `*.msi` |
+            | macOS 12+ | `*.dmg` |
+            | Ubuntu/Debian | `*.deb` |
+          files: |
+            installers/**/*
+          draft: false
+          prerelease: false

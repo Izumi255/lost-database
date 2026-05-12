@@ -32,27 +32,18 @@ import javafx.util.Duration;
 
 public class GameController {
 
-    @FXML
-    private Canvas gameCanvas;
-    @FXML
-    private StackPane gameContainer;
-    @FXML
-    private StackPane pauseMenuOverlay;
+    @FXML private Canvas gameCanvas;
+    @FXML private StackPane gameContainer;
+    @FXML private StackPane pauseMenuOverlay;
 
-    @FXML
-    private Label missionLabel;
-    @FXML
-    private Label interactLabel;
+    @FXML private Label missionLabel;
+    @FXML private Label interactLabel;
 
     // Dialogue UI
-    @FXML
-    private HBox dialogueContainer;
-    @FXML
-    private ImageView portraitImage;
-    @FXML
-    private Label speakerNameLabel;
-    @FXML
-    private Label dialogueTextLabel;
+    @FXML private HBox dialogueContainer;
+    @FXML private ImageView portraitImage;
+    @FXML private Label speakerNameLabel;
+    @FXML private Label dialogueTextLabel;
 
     private static final int TILE_SIZE = 64;
     private static final int TILE_SRC = 16;
@@ -170,8 +161,8 @@ public class GameController {
     private double kateX, kateY;
     private boolean kateExists = false;
     private boolean kateTalkedTo = false;
-    private static final double KATE_W = 48;
-    private static final double KATE_H = 72;
+    private static final double KATE_W = 80;
+    private static final double KATE_H = 120;
     private static final double KATE_INTERACT_RANGE = 100;
 
     // --- GAME STATE ---
@@ -210,7 +201,8 @@ public class GameController {
         for (int i = 0; i < 6; i++) {
             int group = i / 2 + 1;
             int variant = i % 2 + 1;
-            grassSprites[i] = safeLoadTexture("Decorations/GRASS " + group + "-" + variant + ".png");
+            grassSprites[i] =
+                    safeLoadTexture("Decorations/GRASS " + group + "-" + variant + ".png");
         }
         for (int i = 0; i < 3; i++) {
             String key = (i < 2) ? "MUSHROOM 1-" + (i + 1) : "MUSHROOM 2-1";
@@ -321,21 +313,20 @@ public class GameController {
         gameCanvas.setOnKeyReleased(this::handleKeyReleased);
 
         // Start game loop
-        gameLoop = new AnimationTimer() {
-            private long last = -1;
+        gameLoop =
+                new AnimationTimer() {
+                    private long last = -1;
 
-            @Override
-            public void handle(long now) {
-                if (last < 0)
-                    last = now;
-                double dt = (now - last) / 1_000_000_000.0;
-                if (dt > 0.05)
-                    dt = 0.05; // cap delta time
-                update(dt);
-                render();
-                last = now;
-            }
-        };
+                    @Override
+                    public void handle(long now) {
+                        if (last < 0) last = now;
+                        double dt = (now - last) / 1_000_000_000.0;
+                        if (dt > 0.05) dt = 0.05; // cap delta time
+                        update(dt);
+                        render();
+                        last = now;
+                    }
+                };
         gameLoop.start();
 
         // Spawn Kate NPC for Level 1
@@ -349,28 +340,27 @@ public class GameController {
         List<String[]> kateDialog = new ArrayList<>();
         kateDialog.add(
                 new String[] {
-                        "Кейт",
-                        "kate",
-                        "Гей, обережніше там! Дехто з тих, хто пішов за водою, так і не повернувся."
+                    "Кейт",
+                    "kate",
+                    "Гей, обережніше там! Дехто з тих, хто пішов за водою, так і не повернувся."
                 });
-        kateDialog.add(new String[] { "Кейт", "kate", "Кажуть, вони бачили... щось серед дерев." });
+        kateDialog.add(new String[] {"Кейт", "kate", "Кажуть, вони бачили... щось серед дерев."});
         kateDialog.add(
                 new String[] {
-                        "Гравець",
-                        "jack",
-                        "Я мушу знайти кабіну пілотів, Кейт. Без трансивера ми тут назавжди."
+                    "Гравець",
+                    "jack",
+                    "Я мушу знайти кабіну пілотів, Кейт. Без трансивера ми тут назавжди."
                 });
         kateDialog.add(
                 new String[] {
-                        "Кейт", "kate", "Тримай очі відкритими. Якщо почуєш дивні звуки — краще біжи."
+                    "Кейт", "kate", "Тримай очі відкритими. Якщо почуєш дивні звуки — краще біжи."
                 });
 
         startDialogue(kateDialog);
     }
 
     private void startDialogue(List<String[]> sequence) {
-        if (sequence == null || sequence.isEmpty())
-            return;
+        if (sequence == null || sequence.isEmpty()) return;
 
         currentDialogueSequence = sequence;
         currentDialogueIndex = 0;
@@ -420,8 +410,7 @@ public class GameController {
     private Image safeLoad(String path) {
         try {
             java.io.InputStream is = getClass().getResourceAsStream(path);
-            if (is == null)
-                return null;
+            if (is == null) return null;
             return new Image(is);
         } catch (Exception e) {
             return null;
@@ -537,8 +526,7 @@ public class GameController {
     // --- INPUT ---
     private void handleKeyPressed(KeyEvent e) {
         if (gameOver) {
-            if (e.getCode() == KeyCode.R)
-                restartGame();
+            if (e.getCode() == KeyCode.R) restartGame();
             return;
         }
 
@@ -549,8 +537,7 @@ public class GameController {
         }
 
         if (levelComplete) {
-            if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE)
-                loadNextLevel();
+            if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE) loadNextLevel();
             return;
         }
 
@@ -564,8 +551,7 @@ public class GameController {
 
         keys.add(e.getCode());
 
-        if (e.getCode() == KeyCode.E)
-            tryInteract();
+        if (e.getCode() == KeyCode.E) tryInteract();
 
         // Jump — only SPACE (W is for movement, not jump)
         if (e.getCode() == KeyCode.SPACE) {
@@ -592,8 +578,7 @@ public class GameController {
 
     // --- UPDATE ---
     private void update(double dt) {
-        if (dt <= 0 || isPaused)
-            return;
+        if (dt <= 0 || isPaused) return;
 
         if (gameOver) {
             gameOverTimer += dt;
@@ -605,21 +590,17 @@ public class GameController {
         }
 
         // Dash cooldown
-        if (dashCooldown > 0)
-            dashCooldown -= dt;
-        if (landingTimer > 0)
-            landingTimer -= dt;
+        if (dashCooldown > 0) dashCooldown -= dt;
+        if (landingTimer > 0) landingTimer -= dt;
 
         // Update damage cooldown
         player.updateCooldown(dt);
-        if (damageFlashTimer > 0)
-            damageFlashTimer -= dt;
+        if (damageFlashTimer > 0) damageFlashTimer -= dt;
 
         boolean currentlyGrounded = player.isGrounded();
 
         // Reset jumps when grounded
-        if (currentlyGrounded)
-            jumpsUsed = 0;
+        if (currentlyGrounded) jumpsUsed = 0;
 
         // DASH movement
         if (isDashing) {
@@ -629,15 +610,12 @@ public class GameController {
             if (!collidesAt(nextXDash, player.getY())) {
                 player.setX(nextXDash);
             }
-            if (dashTimer <= 0)
-                isDashing = false;
+            if (dashTimer <= 0) isDashing = false;
         } else {
             // Normal horizontal input
             double targetVx = 0;
-            if (keys.contains(KeyCode.A))
-                targetVx -= MOVE_SPEED;
-            if (keys.contains(KeyCode.D))
-                targetVx += MOVE_SPEED;
+            if (keys.contains(KeyCode.A)) targetVx -= MOVE_SPEED;
+            if (keys.contains(KeyCode.D)) targetVx += MOVE_SPEED;
             player.setVx(targetVx);
 
             // Apply gravity
@@ -793,10 +771,8 @@ public class GameController {
             newState = AnimState.IDLE;
         }
 
-        if (player.getVx() > 0.1)
-            facingRight = true;
-        else if (player.getVx() < -0.1)
-            facingRight = false;
+        if (player.getVx() > 0.1) facingRight = true;
+        else if (player.getVx() < -0.1) facingRight = false;
 
         if (newState != animState) {
             animState = newState;
@@ -820,8 +796,7 @@ public class GameController {
         double canvasW = gameCanvas.getWidth();
         double canvasH = gameCanvas.getHeight();
 
-        if (canvasW <= 0 || canvasH <= 0)
-            return;
+        if (canvasW <= 0 || canvasH <= 0) return;
 
         // Clear background (jungle sky)
         gc.setFill(Color.web("#1B3A2D"));
@@ -844,14 +819,15 @@ public class GameController {
             // Fallback procedurally generated map drawing logic
             int startTileX = Math.max(0, (int) (cameraX / TILE_SIZE) - 1);
             int startTileY = Math.max(0, (int) (cameraY / TILE_SIZE) - 1);
-            int endTileX = Math.min(jungleMap.getWidth(), startTileX + (int) (canvasW / TILE_SIZE) + 2);
-            int endTileY = Math.min(jungleMap.getHeight(), startTileY + (int) (canvasH / TILE_SIZE) + 2);
+            int endTileX =
+                    Math.min(jungleMap.getWidth(), startTileX + (int) (canvasW / TILE_SIZE) + 2);
+            int endTileY =
+                    Math.min(jungleMap.getHeight(), startTileY + (int) (canvasH / TILE_SIZE) + 2);
 
             for (int mx = startTileX; mx < endTileX; mx++) {
                 for (int my = startTileY; my < endTileY; my++) {
                     TileType t = jungleMap.getTile(mx, my);
-                    if (t == null)
-                        continue;
+                    if (t == null) continue;
 
                     double destX = mx * TILE_SIZE - cameraX;
                     double destY = my * TILE_SIZE - cameraY;
@@ -883,8 +859,7 @@ public class GameController {
         for (ItemDrop item : items) {
             double ix = item.x - cameraX;
             double iy = item.y - cameraY;
-            if (ix < -32 || ix > canvasW + 32 || iy < -32 || iy > canvasH + 32)
-                continue;
+            if (ix < -32 || ix > canvasW + 32 || iy < -32 || iy > canvasH + 32) continue;
 
             // Floating animation
             double floatOffset = Math.sin(System.currentTimeMillis() / 300.0 + item.x) * 4;
@@ -910,18 +885,17 @@ public class GameController {
         for (Enemy enemy : enemies) {
             double ex = enemy.x - cameraX;
             double ey = enemy.y - cameraY;
-            if (ex < -64 || ex > canvasW + 64 || ey < -64 || ey > canvasH + 64)
-                continue;
+            if (ex < -64 || ex > canvasW + 64 || ey < -64 || ey > canvasH + 64) continue;
 
             if (enemy.isGhost && ghostFrames != null) {
                 Image ghostSprite = ghostFrames[enemy.spriteVariant % ghostFrames.length];
-                if (!isValidImage(ghostSprite))
-                    continue;
+                if (!isValidImage(ghostSprite)) continue;
 
                 // No bob — ghost position is stable
 
                 // Subtle opacity pulse for spooky effect (0.7 — 1.0)
-                double flicker = 0.75 + 0.25 * Math.sin(System.currentTimeMillis() / 400.0 + enemy.y * 0.3);
+                double flicker =
+                        0.75 + 0.25 * Math.sin(System.currentTimeMillis() / 400.0 + enemy.y * 0.3);
                 gc.setGlobalAlpha(flicker);
 
                 double gWidth = 72;
@@ -977,8 +951,7 @@ public class GameController {
     // --- DRAW HELPERS ---
     private void drawParallax(
             GraphicsContext gc, Image layer, double speedFactor, double canvasW, double canvasH) {
-        if (!isValidImage(layer))
-            return;
+        if (!isValidImage(layer)) return;
 
         double imgW = layer.getWidth();
         double imgH = layer.getHeight();
@@ -987,8 +960,7 @@ public class GameController {
 
         double offset = cameraX * speedFactor;
         double x = -(offset % scaledW);
-        if (x > 0)
-            x -= scaledW;
+        if (x > 0) x -= scaledW;
 
         while (x < canvasW) {
             gc.drawImage(layer, x, 0, scaledW, canvasH);
@@ -998,8 +970,9 @@ public class GameController {
 
     private void drawGroundTile(GraphicsContext gc, int mx, int my, double destX, double destY) {
         if (isValidImage(jungleTileset)) {
-            boolean isTopSurface = (my > 0 && jungleMap.getTile(mx, my - 1) == null)
-                    || (my > 0 && jungleMap.getTile(mx, my - 1) == TileType.DECORATION);
+            boolean isTopSurface =
+                    (my > 0 && jungleMap.getTile(mx, my - 1) == null)
+                            || (my > 0 && jungleMap.getTile(mx, my - 1) == TileType.DECORATION);
 
             if (isTopSurface) {
                 int variation = (mx + my * 3) % 3;
@@ -1038,8 +1011,9 @@ public class GameController {
 
         // Check if multi-tile decoration (tree) or single (grass/bush)
         boolean hasDecoAbove = my > 0 && jungleMap.getTile(mx, my - 1) == TileType.DECORATION;
-        boolean hasDecoBelow = my < jungleMap.getHeight() - 1
-                && jungleMap.getTile(mx, my + 1) == TileType.DECORATION;
+        boolean hasDecoBelow =
+                my < jungleMap.getHeight() - 1
+                        && jungleMap.getTile(mx, my + 1) == TileType.DECORATION;
 
         if (!hasDecoAbove && hasDecoBelow) {
             // Top of tree — use bush sprite
@@ -1077,8 +1051,8 @@ public class GameController {
         for (int i = 0; i < 3; i++) {
             double sx = destX + i * 11;
             gc.fillPolygon(
-                    new double[] { sx + 1, sx + 5.5, sx + 10 },
-                    new double[] { destY + TILE_SIZE, destY + 4, destY + TILE_SIZE },
+                    new double[] {sx + 1, sx + 5.5, sx + 10},
+                    new double[] {destY + TILE_SIZE, destY + 4, destY + TILE_SIZE},
                     3);
         }
     }
@@ -1409,8 +1383,7 @@ public class GameController {
         for (int x = 0; x < mapW; x++) {
             for (int y = 0; y < mapH; y++) {
                 TileType t = jungleMap.getTile(x, y);
-                if (t == null)
-                    continue;
+                if (t == null) continue;
 
                 switch (t) {
                     case GROUND:
@@ -1599,8 +1572,7 @@ public class GameController {
 
         for (int tx = minTx; tx <= maxTx; tx++) {
             for (int ty = minTy; ty <= maxTy; ty++) {
-                if (jungleMap.isSolid(tx, ty))
-                    return true;
+                if (jungleMap.isSolid(tx, ty)) return true;
             }
         }
         return false;
@@ -1619,8 +1591,7 @@ public class GameController {
 
         for (int tx = minTx; tx <= maxTx; tx++) {
             for (int ty = minTy; ty <= maxTy; ty++) {
-                if (jungleMap.isHazard(tx, ty))
-                    return true;
+                if (jungleMap.isHazard(tx, ty)) return true;
             }
         }
         return false;
@@ -1646,15 +1617,16 @@ public class GameController {
         double tileX = cx * TILE_SIZE;
         double tileY = cy * TILE_SIZE;
 
-        boolean nearCockpit = rectsOverlap(
-                player.getX() - 32,
-                player.getY() - 32,
-                PLAYER_W + 64,
-                PLAYER_H + 64,
-                tileX,
-                tileY,
-                TILE_SIZE,
-                TILE_SIZE);
+        boolean nearCockpit =
+                rectsOverlap(
+                        player.getX() - 32,
+                        player.getY() - 32,
+                        PLAYER_W + 64,
+                        PLAYER_H + 64,
+                        tileX,
+                        tileY,
+                        TILE_SIZE,
+                        TILE_SIZE);
 
         // Check proximity to Kate NPC
         boolean nearKate = kateExists && !kateTalkedTo && isNearKate();
@@ -1671,8 +1643,7 @@ public class GameController {
     }
 
     private boolean isNearKate() {
-        if (!kateExists)
-            return false;
+        if (!kateExists) return false;
         double dx = Math.abs((player.getX() + PLAYER_W / 2) - (kateX + KATE_W / 2));
         double dy = Math.abs((player.getY() + PLAYER_H / 2) - (kateY + KATE_H / 2));
         return dx < KATE_INTERACT_RANGE && dy < KATE_INTERACT_RANGE;
@@ -1686,8 +1657,7 @@ public class GameController {
             return;
         }
 
-        if (missionComplete)
-            return;
+        if (missionComplete) return;
 
         int cx = jungleMap.getCockpitX();
         int cy = jungleMap.getCockpitY();
@@ -1721,7 +1691,7 @@ public class GameController {
     private void spawnKateNPC() {
         // Place Kate 3 tiles to the right of player spawn
         double spawnX = jungleMap.getSpawnX() * TILE_SIZE + 3 * TILE_SIZE;
-        double spawnY = (jungleMap.getSpawnY() - 1) * TILE_SIZE + (TILE_SIZE - KATE_H);
+        double spawnY = jungleMap.getSpawnY() * TILE_SIZE - KATE_H + 82;
         kateX = spawnX;
         kateY = spawnY;
         kateExists = true;
@@ -1730,15 +1700,13 @@ public class GameController {
     }
 
     private void drawKateNPC(GraphicsContext gc, double canvasW, double canvasH) {
-        if (!kateExists)
-            return;
+        if (!kateExists) return;
 
         double kx = kateX - cameraX;
         double ky = kateY - cameraY;
 
         // Skip if off screen
-        if (kx < -100 || kx > canvasW + 100 || ky < -100 || ky > canvasH + 100)
-            return;
+        if (kx < -100 || kx > canvasW + 100 || ky < -100 || ky > canvasH + 100) return;
 
         // Gentle breathing animation
         double breathe = Math.sin(System.currentTimeMillis() / 800.0) * 2;
@@ -1905,10 +1873,8 @@ public class GameController {
 
             if (isGhost) {
                 // Ghosts float freely — ignore walls, only respect patrol bounds
-                if (x >= maxX)
-                    movingRight = false;
-                if (x <= minX)
-                    movingRight = true;
+                if (x >= maxX) movingRight = false;
+                if (x <= minX) movingRight = true;
                 // No gravity for ghosts
             } else {
                 // Reverse at patrol boundaries or walls
@@ -1969,15 +1935,13 @@ public class GameController {
     @FXML
     private void exitToMenu() {
         System.out.println("Exiting to Lobby...");
-        if (gameLoop != null)
-            gameLoop.stop();
+        if (gameLoop != null) gameLoop.stop();
         javafx.application.Platform.runLater(
                 () -> {
                     try {
                         LobbyController lobby = new LobbyController();
                         Player p = dbPlayer != null ? dbPlayer : new Player();
-                        if (p.getUsername() == null)
-                            p.setUsername("Player");
+                        if (p.getUsername() == null) p.setUsername("Player");
                         javafx.scene.layout.StackPane lobbyRoot = lobby.buildView(p);
                         gameCanvas.getScene().setRoot(lobbyRoot);
                     } catch (Exception e) {

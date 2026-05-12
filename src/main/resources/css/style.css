@@ -3,6 +3,145 @@
     -fx-background-color: #0d1117;
 }
 
+/* ── TextField / PasswordField ── */
+.text-field, .password-field {
+    -fx-background-color: rgba(0, 10, 20, 0.75);
+    -fx-text-fill: white;
+    -fx-prompt-text-fill: rgba(120, 140, 160, 0.5);
+    -fx-border-color: rgba(0, 255, 170, 0.12);
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 12 14;
+    -fx-font-size: 14px;
+}
+
+.text-field:focused, .password-field:focused {
+    -fx-border-color: rgba(0, 255, 170, 0.55);
+    -fx-background-color: rgba(0, 15, 25, 0.9);
+    -fx-effect: dropshadow(gaussian, rgba(0, 255, 170, 0.2), 12, 0, 0, 0);
+}
+
+.text-field:hover, .password-field:hover {
+    -fx-border-color: rgba(0, 255, 170, 0.3);
+}
+
+/* ── Buttons ── */
+.login-btn {
+    -fx-background-color: linear-gradient(to right, #00cc88, #00ffaa);
+    -fx-text-fill: #0a0e13;
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-min-width: 300;
+    -fx-padding: 13;
+    -fx-background-radius: 10;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 255, 170, 0.3), 12, 0, 0, 3);
+}
+
+.login-btn:hover {
+    -fx-background-color: linear-gradient(to right, #00e699, #33ffbb);
+    -fx-effect: dropshadow(gaussian, rgba(0, 255, 170, 0.55), 20, 0, 0, 4);
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+.login-btn:pressed {
+    -fx-background-color: linear-gradient(to right, #00aa77, #00dd99);
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
+}
+
+.register-btn {
+    -fx-background-color: linear-gradient(to right, #0088cc, #00aaff);
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-min-width: 300;
+    -fx-padding: 13;
+    -fx-background-radius: 10;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0, 170, 255, 0.3), 12, 0, 0, 3);
+}
+
+.register-btn:hover {
+    -fx-background-color: linear-gradient(to right, #0099dd, #22bbff);
+    -fx-effect: dropshadow(gaussian, rgba(0, 170, 255, 0.55), 20, 0, 0, 4);
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+.register-btn:pressed {
+    -fx-background-color: linear-gradient(to right, #0077aa, #0099dd);
+    -fx-scale-x: 0.97;
+    -fx-scale-y: 0.97;
+}
+
+.confirm-btn {
+    -fx-background-color: linear-gradient(to right, #00cc88, #00ffaa);
+    -fx-text-fill: #0a0e13;
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-min-width: 300;
+    -fx-padding: 13;
+    -fx-background-radius: 10;
+    -fx-cursor: hand;
+}
+
+.confirm-btn:hover {
+    -fx-background-color: linear-gradient(to right, #00e699, #33ffbb);
+    -fx-effect: dropshadow(gaussian, rgba(0, 255, 170, 0.5), 18, 0, 0, 3);
+    -fx-scale-x: 1.02;
+    -fx-scale-y: 1.02;
+}
+
+/* ── Auth Card ── */
+.auth-card {
+    -fx-background-color: rgba(8, 14, 22, 0.92);
+    -fx-padding: 38 44;
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(0, 255, 170, 0.1);
+    -fx-border-radius: 18;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.6), 30, 0, 0, 8);
+}
+
+.reg-card {
+    -fx-background-color: rgba(8, 14, 22, 0.92);
+    -fx-padding: 38 44;
+    -fx-background-radius: 18;
+    -fx-border-color: rgba(0, 170, 255, 0.1);
+    -fx-border-radius: 18;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.6), 30, 0, 0, 8);
+}
+
+/* ── Hyperlink ── */
+.hyperlink {
+    -fx-text-fill: rgba(0, 255, 170, 0.55);
+    -fx-font-size: 12px;
+    -fx-border-color: transparent;
+    -fx-padding: 4 0;
+}
+
+.hyperlink:hover {
+    -fx-text-fill: rgba(0, 255, 170, 0.9);
+    -fx-underline: true;
+}
+
+/* ── Section label ── */
+.field-label {
+    -fx-text-fill: rgba(180, 200, 220, 0.55);
+    -fx-font-size: 10.5px;
+    -fx-font-family: 'Courier New';
+    -fx-padding: 2 0 -4 6;
+    -fx-letter-spacing: 2;
+}
+
+/* ── Separator line ── */
+.separator-line {
+    -fx-background-color: rgba(100, 150, 200, 0.12);
+}
+
 /* ── ComboBox dark dropdown ── */
 .combo-box-popup .list-view {
     -fx-background-color: rgba(20, 25, 30, 0.95);
@@ -28,17 +167,6 @@
     -fx-text-fill: #00ffaa;
 }
 
-/* ── TextField dark styling ── */
-.text-field {
-    -fx-background-color: rgba(0, 0, 0, 0.6);
-    -fx-text-fill: white;
-    -fx-prompt-text-fill: #666;
-    -fx-border-color: rgba(100, 150, 200, 0.3);
-    -fx-border-radius: 8;
-    -fx-background-radius: 8;
-}
-
-/* ── ComboBox button area ── */
 .combo-box .cell {
     -fx-text-fill: white;
 }

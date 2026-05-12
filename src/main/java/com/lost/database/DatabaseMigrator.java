@@ -48,29 +48,62 @@ public class DatabaseMigrator {
 
         // 4. Демонстрація даних конкретного акаунта ("що входить в акк")
         System.out.println("\n=== ДЕТАЛЬНА ІНФОРМАЦІЯ ПРО АКАУНТ ===");
-        playerDao.findByUsername("dimab").ifPresentOrElse(player -> {
-            System.out.println("ГРАВЕЦЬ: " + player.getUsername() + " (Роль: " + player.getRole() + ")");
-            System.out.println("  Загальний рахунок: " + player.getTotalScore());
-            System.out.println("  Макс. рівень: " + player.getMaxLevelReached());
+        playerDao
+                .findByUsername("dimab")
+                .ifPresentOrElse(
+                        player -> {
+                            System.out.println(
+                                    "ГРАВЕЦЬ: "
+                                            + player.getUsername()
+                                            + " (Роль: "
+                                            + player.getRole()
+                                            + ")");
+                            System.out.println("  Загальний рахунок: " + player.getTotalScore());
+                            System.out.println("  Макс. рівень: " + player.getMaxLevelReached());
 
-            GameSaveDao saveDao = new GameSaveDao(pool);
-            List<GameSave> saves = saveDao.findByPlayerId(player.getId());
-            System.out.println("\n  -- Збереження (" + saves.size() + ") --");
-            saves.forEach(s -> System.out.println("    " + s.getSaveName() + " (Рівень " + s.getCurrentLevel() + ", HP: " + s.getHealth() + ")"));
+                            GameSaveDao saveDao = new GameSaveDao(pool);
+                            List<GameSave> saves = saveDao.findByPlayerId(player.getId());
+                            System.out.println("\n  -- Збереження (" + saves.size() + ") --");
+                            saves.forEach(
+                                    s ->
+                                            System.out.println(
+                                                    "    "
+                                                            + s.getSaveName()
+                                                            + " (Рівень "
+                                                            + s.getCurrentLevel()
+                                                            + ", HP: "
+                                                            + s.getHealth()
+                                                            + ")"));
 
-            InventoryItemDao inventoryDao = new InventoryItemDao(pool);
-            List<InventoryItem> items = inventoryDao.findByPlayerId(player.getId());
-            System.out.println("\n  -- Інвентар (" + items.size() + ") --");
-            items.forEach(i -> System.out.println("    " + i.getItemName() + " (Кількість: " + i.getQuantity() + ")"));
+                            InventoryItemDao inventoryDao = new InventoryItemDao(pool);
+                            List<InventoryItem> items = inventoryDao.findByPlayerId(player.getId());
+                            System.out.println("\n  -- Інвентар (" + items.size() + ") --");
+                            items.forEach(
+                                    i ->
+                                            System.out.println(
+                                                    "    "
+                                                            + i.getItemName()
+                                                            + " (Кількість: "
+                                                            + i.getQuantity()
+                                                            + ")"));
 
-            PlayerAchievementDao achievementDao = new PlayerAchievementDao(pool);
-            List<PlayerAchievement> achievements = achievementDao.findByPlayerId(player.getId());
-            System.out.println("\n  -- Досягнення (" + achievements.size() + ") --");
-            achievements.forEach(a -> System.out.println("    " + a.getAchievementCode() + " (Отримано: " + a.getAchievedAt() + ")"));
-
-        }, () -> {
-            System.out.println("Гравець 'dimab' не знайдений у базі.");
-        });
+                            PlayerAchievementDao achievementDao = new PlayerAchievementDao(pool);
+                            List<PlayerAchievement> achievements =
+                                    achievementDao.findByPlayerId(player.getId());
+                            System.out.println(
+                                    "\n  -- Досягнення (" + achievements.size() + ") --");
+                            achievements.forEach(
+                                    a ->
+                                            System.out.println(
+                                                    "    "
+                                                            + a.getAchievementCode()
+                                                            + " (Отримано: "
+                                                            + a.getUnlockedAt()
+                                                            + ")"));
+                        },
+                        () -> {
+                            System.out.println("Гравець 'dimab' не знайдений у базі.");
+                        });
 
         // 5. Закриття пулу
         pool.shutdown();
