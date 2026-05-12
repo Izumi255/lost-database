@@ -20,6 +20,7 @@ public class LostDatabaseApp extends Application {
                 Flyway.configure()
                         .dataSource("jdbc:h2:file:./data/lostdb", "sa", "")
                         .locations("classpath:db/migration")
+                        .baselineOnMigrate(true)
                         .load();
         flyway.migrate();
 
