@@ -16,18 +16,23 @@ jobs:
           - os: windows-latest
             artifact: windows-installer
             extension: msi
+            javafx_platform: win
           - os: macos-latest
             artifact: macos-installer
             extension: dmg
+            javafx_platform: mac
           - os: ubuntu-latest
             artifact: linux-installer
             extension: deb
+            javafx_platform: linux
 
     runs-on: ${{ matrix.os }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -39,26 +44,63 @@ jobs:
       - name: Build fat JAR
         run: mvn clean package -DskipTests
 
+      - name: Download JavaFX jmods
+        shell: bash
+        run: |
+          JAVAFX_VERSION=21.0.1
+          if [ "${{ matrix.javafx_platform }}" = "win" ]; then
+            curl -L -o javafx-jmods.zip "https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_windows-x64_bin-jmods.zip"
+          elif [ "${{ matrix.javafx_platform }}" = "mac" ]; then
+            curl -L -o javafx-jmods.zip "https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_osx-x64_bin-jmods.zip"
+          else
+            curl -L -o javafx-jmods.zip "https://download2.gluonhq.com/openjfx/${JAVAFX_VERSION}/openjfx-${JAVAFX_VERSION}_linux-x64_bin-jmods.zip"
+          fi
+          unzip javafx-jmods.zip
+          echo "JAVAFX_JMODS=$(pwd)/javafx-jmods-${JAVAFX_VERSION}" >> $GITHUB_ENV
+
+      - name: Prepare app directory
+        shell: bash
+        run: |
+          mkdir -p app-input
+          cp target/lost-game-database-*.jar app-input/lost-game-database.jar
+          # Remove original-* jar if exists
+          rm -f app-input/original-*
+
       - name: Create installer with jpackage
         shell: bash
         run: |
-          # Find the shaded JAR
-          JAR_FILE=$(ls target/lost-game-database-*.jar | grep -v original | head -1)
-          echo "Using JAR: $JAR_FILE"
+          APP_VERSION="${GITHUB_REF_NAME#v}"
+          # Ensure version is valid (X.Y.Z format)
+          if ! echo "$APP_VERSION" | grep -qE '^[0-9]+\.[0-9]+'; then
+            APP_VERSION="1.0.0"
+          fi
           
           jpackage \
-            --input target \
-            --main-jar $(basename "$JAR_FILE") \
+            --input app-input \
+            --main-jar lost-game-database.jar \
             --main-class com.lost.database.app.Launcher \
             --name "LOST" \
-            --app-version "${GITHUB_REF_NAME#v}" \
+            --app-version "$APP_VERSION" \
             --vendor "Izumi255" \
             --description "LOST - Database Management System Game" \
             --type ${{ matrix.extension }} \
             --dest dist \
-            --java-options "--enable-preview" \
-            --java-options "--add-modules=javafx.controls,javafx.fxml,javafx.media" \
-            --java-options "-Dfile.encoding=UTF-8"
+            --module-path "$JAVAFX_JMODS" \
+            --add-modules javafx.controls,javafx.fxml,javafx.media \
+            --java-options "-Dfile.encoding=UTF-8" \
+            --java-options "--add-reads=javafx.base=ALL-UNNAMED" \
+            --java-options "--add-reads=javafx.controls=ALL-UNNAMED" \
+            --java-options "--add-reads=javafx.fxml=ALL-UNNAMED" \
+            --java-options "--add-reads=javafx.graphics=ALL-UNNAMED" \
+            --java-options "--add-reads=javafx.media=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.base/com.sun.javafx.reflect=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/com.sun.javafx.css=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/com.sun.javafx.scene=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/com.sun.javafx.scene.layout=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/javafx.scene.layout=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.base/com.sun.javafx.logging=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/com.sun.prism=ALL-UNNAMED" \
+            --java-options "--add-opens=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
