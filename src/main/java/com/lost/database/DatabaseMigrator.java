@@ -10,7 +10,7 @@ import org.flywaydb.core.Flyway;
 /** Головний клас — запуск міграцій та демонстрація роботи DAO. */
 public class DatabaseMigrator {
 
-    private static final String DB_URL = "jdbc:h2:file:./data/lostdb";
+    private static final String DB_URL = "jdbc:h2:file:~/.lost-database/data/lostdb";
     private static final String DB_USER = "sa";
     private static final String DB_PASSWORD = "";
 

@@ -107,7 +107,7 @@ public class ConnectionPool {
     }
 
     public static class PoolConfig {
-        private static final String DEFAULT_URL = "jdbc:h2:file:./data/lostdb";
+        private static final String DEFAULT_URL = "jdbc:h2:file:~/.lost-database/data/lostdb";
         private static final String DEFAULT_USER = "sa";
         private static final String DEFAULT_PASSWORD = "";
         private static final int DEFAULT_MAX_CONNECTIONS = 5;

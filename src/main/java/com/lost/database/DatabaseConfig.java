@@ -19,7 +19,7 @@ public class DatabaseConfig {
 
     /** Створює конфігурацію за замовчуванням для H2. */
     public static DatabaseConfig defaultH2() {
-        return new DatabaseConfig("jdbc:h2:file:./data/lostdb", "sa", "", "org.h2.Driver");
+        return new DatabaseConfig("jdbc:h2:file:~/.lost-database/data/lostdb", "sa", "", "org.h2.Driver");
     }
 
     // Getters & Setters
