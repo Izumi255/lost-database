@@ -86,7 +86,7 @@ jobs:
             --type ${{ matrix.extension }} \
             --dest dist \
             --module-path "$JAVAFX_JMODS" \
-            --add-modules javafx.controls,javafx.fxml,javafx.media \
+            --add-modules java.base,java.sql,java.desktop,java.logging,java.naming,java.prefs,java.xml,java.datatransfer,java.scripting,jdk.unsupported,javafx.controls,javafx.fxml,javafx.media \
             --java-options "-Dfile.encoding=UTF-8"
 
       - name: Upload installer artifact
