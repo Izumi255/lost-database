@@ -5,10 +5,13 @@ import com.lost.database.dao.PlayerDao;
 import com.lost.database.entity.Player;
 import com.lost.database.infrastructure.SettingsManager;
 import com.lost.database.service.AuthService;
+import com.lost.database.infrastructure.OnlineService;
 import java.util.Optional;
+import java.util.Map;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
@@ -21,6 +24,7 @@ public class LoginController {
     @FXML private PasswordField passwordField;
     @FXML private Label statusLabel;
     @FXML private Button loginBtn;
+    @FXML private CheckBox onlineLoginCheck;
     @FXML private VBox authBox;
 
     // Реєстрація
@@ -51,32 +55,13 @@ public class LoginController {
         playerDao = new PlayerDao(LostDatabaseApp.getConnectionPool());
         settings = new SettingsManager();
 
-        // Auto-login if saved
+        // Auto-login if saved (Тимчасово вимкнено для тестування онлайн логіну)
         if (settings.hasAutoLogin()) {
             String user = settings.getSavedUsername();
             String pass = settings.getSavedPassword();
             usernameField.setText(user);
             passwordField.setText(pass);
-            Platform.runLater(
-                    () -> {
-                        new Thread(
-                                        () -> {
-                                            Optional<Player> result = authService.login(user, pass);
-                                            Platform.runLater(
-                                                    () -> {
-                                                        if (result.isPresent()) {
-                                                            goToLobby(result.get());
-                                                        } else {
-                                                            settings.clearAccount();
-                                                            showStatus(
-                                                                    statusLabel,
-                                                                    "Збережений акаунт недійсний",
-                                                                    "#ff9900");
-                                                        }
-                                                    });
-                                        })
-                                .start();
-                    });
+            // Не робимо автоматичний перехід, щоб гравець міг вибрати онлайн чи офлайн
         }
     }
 
@@ -84,29 +69,56 @@ public class LoginController {
     public void onLogin() {
         String user = usernameField.getText().trim();
         String pass = passwordField.getText();
+        boolean isOnline = onlineLoginCheck != null && onlineLoginCheck.isSelected();
 
         if (user.isEmpty() || pass.isEmpty()) {
             showStatus(statusLabel, "Введіть логін та пароль!", "#ff3333");
             return;
         }
 
-        showStatus(statusLabel, "Перевірка...", "yellow");
+        showStatus(statusLabel, isOnline ? "З'єднання з сервером..." : "Перевірка...", "yellow");
 
         new Thread(
                         () -> {
-                            Optional<Player> result = authService.login(user, pass);
-                            Platform.runLater(
-                                    () -> {
-                                        if (result.isPresent()) {
-                                            settings.saveAccount(user, pass);
-                                            goToLobby(result.get());
+                            if (isOnline) {
+                                Optional<Map<String, String>> onlineResult = OnlineService.getInstance().loginOnline(user, pass);
+                                Platform.runLater(() -> {
+                                    if (onlineResult.isPresent()) {
+                                        // Якщо онлайн логін успішний, знаходимо або створюємо локального гравця для сесії
+                                        Optional<Player> localPlayerOpt = playerDao.findByUsername(user);
+                                        Player localPlayer;
+                                        if (localPlayerOpt.isPresent()) {
+                                            localPlayer = localPlayerOpt.get();
                                         } else {
-                                            showStatus(
-                                                    statusLabel,
-                                                    "❌ Невірний логін або пароль.",
-                                                    "#ff3333");
+                                            localPlayer = new Player();
+                                            localPlayer.setUsername(user);
+                                            localPlayer.setPasswordHash("online_temp");
+                                            localPlayer.setRole(onlineResult.get().get("role"));
+                                            playerDao.save(localPlayer); // Створюємо локальну копію
                                         }
-                                    });
+                                        settings.saveAccount(user, pass);
+                                        showStatus(statusLabel, "✅ Онлайн вхід успішний!", "#00ff00");
+                                        goToLobby(localPlayer);
+                                    } else {
+                                        showStatus(statusLabel, "❌ Помилка з'єднання або невірні дані.", "#ff3333");
+                                    }
+                                });
+                            } else {
+                                // Локальний логін
+                                Optional<Player> result = authService.login(user, pass);
+                                Platform.runLater(
+                                        () -> {
+                                            if (result.isPresent()) {
+                                                settings.saveAccount(user, pass);
+                                                goToLobby(result.get());
+                                            } else {
+                                                showStatus(
+                                                        statusLabel,
+                                                        "❌ Невірний логін або пароль.",
+                                                        "#ff3333");
+                                            }
+                                        });
+                            }
                         })
                 .start();
     }

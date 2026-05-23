@@ -18,7 +18,7 @@ public class LostDatabaseApp extends Application {
         // 1. Ініціалізація БД (Flyway міграції)
         Flyway flyway =
                 Flyway.configure()
-                        .dataSource("jdbc:h2:file:~/.lost-database/data/lostdb", "sa", "")
+                        .dataSource("jdbc:h2:file:~/.lost-database/data/lostdb;AUTO_SERVER=TRUE", "sa", "")
                         .locations("classpath:db/migration")
                         .baselineOnMigrate(true)
                         .load();

@@ -74,6 +74,11 @@
             <PasswordField fx:id="passwordField" promptText="Введіть пароль" />
 
             <Region prefHeight="6" />
+            
+            <CheckBox fx:id="onlineLoginCheck" text="Увійти онлайн (сервер localhost:8080)" 
+                      style="-fx-text-fill: rgba(255,255,255,0.7); -fx-font-size: 11px;" />
+
+            <Region prefHeight="6" />
 
             <Button fx:id="loginBtn" text="▶  УВІЙТИ" onAction="#onLogin"
                     styleClass="login-btn" />

@@ -17,7 +17,9 @@ public class TileMapRenderer {
             double camX,
             double camY,
             double screenW,
-            double screenH) {
+            double screenH,
+            int srcTileSize,
+            int srcColumns) {
         if (layer == null || tileset == null) return;
 
         int mapRows = layer.length;
@@ -38,15 +40,15 @@ public class TileMapRenderer {
                 double dstY = r * TILE_SIZE - camY;
 
                 int idx = id - 1;
-                int srcCol = idx % TILESET_COLS;
-                int srcRow = idx / TILESET_COLS;
+                int srcCol = idx % srcColumns;
+                int srcRow = idx / srcColumns;
 
                 gc.drawImage(
                         tileset,
-                        srcCol * TILESET_SRC_SIZE,
-                        srcRow * TILESET_SRC_SIZE,
-                        TILESET_SRC_SIZE,
-                        TILESET_SRC_SIZE,
+                        srcCol * srcTileSize,
+                        srcRow * srcTileSize,
+                        srcTileSize,
+                        srcTileSize,
                         dstX,
                         dstY,
                         TILE_SIZE,

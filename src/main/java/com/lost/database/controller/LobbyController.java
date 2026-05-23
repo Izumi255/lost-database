@@ -3,10 +3,13 @@ package com.lost.database.controller;
 import com.lost.database.app.LostDatabaseApp;
 import com.lost.database.dao.*;
 import com.lost.database.entity.*;
+import com.lost.database.infrastructure.OnlineService;
 import com.lost.database.infrastructure.SettingsManager;
 import com.lost.database.pool.ConnectionPool;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import javafx.animation.*;
 import javafx.application.Platform;
@@ -349,27 +352,17 @@ public class LobbyController {
 
                     new Thread(
                                     () -> {
-                                        var sessions = sessionDao.findAll();
-                                        var found =
-                                                sessions.stream()
-                                                        .filter(
-                                                                s ->
-                                                                        s.getSessionCode()
-                                                                                .equalsIgnoreCase(
-                                                                                        code))
-                                                        .findFirst();
-
+                                        com.lost.database.infrastructure.MultiplayerService ms = com.lost.database.infrastructure.MultiplayerService.getInstance();
+                                        Map<String, Object> sessionInfo = ms.joinSession(code);
+                                        
                                         Platform.runLater(
                                                 () -> {
-                                                    if (found.isPresent()) {
-                                                        SessionPlayer sp = new SessionPlayer();
-                                                        sp.setSessionId(found.get().getId());
-                                                        sp.setPlayerId(currentPlayer.getId());
-                                                        sessionPlayerDao.save(sp);
+                                                    if (sessionInfo != null) {
                                                         statusLabel.setTextFill(
                                                                 Color.rgb(0, 255, 170));
                                                         statusLabel.setText(
                                                                 "JOINED: " + code + "!");
+                                                        startGameDirectly(null); // start game as client
                                                     } else {
                                                         statusLabel.setTextFill(
                                                                 Color.rgb(255, 80, 80));
@@ -467,26 +460,23 @@ public class LobbyController {
 
                     new Thread(
                                     () -> {
-                                        GameSession session = new GameSession();
-                                        session.setSessionCode(code);
-                                        session.setHostPlayerId(currentPlayer.getId());
-                                        session.setMaxPlayers(maxPlayers);
-                                        session.setStatus("WAITING | " + diff);
-                                        sessionDao.save(session);
-
-                                        SessionPlayer sp = new SessionPlayer();
-                                        sp.setSessionId(session.getId());
-                                        sp.setPlayerId(currentPlayer.getId());
-                                        sessionPlayerDao.save(sp);
+                                        com.lost.database.infrastructure.MultiplayerService ms = com.lost.database.infrastructure.MultiplayerService.getInstance();
+                                        Map<String, Object> res = ms.createSession(maxPlayers);
 
                                         Platform.runLater(
                                                 () -> {
-                                                    codeLabel.setText(code);
-                                                    statusLabel.setTextFill(Color.rgb(0, 255, 170));
-                                                    statusLabel.setText("SHARE CODE WITH FRIENDS!");
-                                                    btnCreate.setText("START ADVENTURE ▶");
-                                                    btnCreate.setDisable(false);
-                                                    btnCreate.setOnAction(ev -> startCutscene());
+                                                    if (res != null) {
+                                                        codeLabel.setText(res.get("sessionCode").toString());
+                                                        statusLabel.setTextFill(Color.rgb(0, 255, 170));
+                                                        statusLabel.setText("SHARE CODE WITH FRIENDS!");
+                                                        btnCreate.setText("START ADVENTURE ▶");
+                                                        btnCreate.setDisable(false);
+                                                        btnCreate.setOnAction(ev -> startCutscene());
+                                                    } else {
+                                                        statusLabel.setTextFill(Color.rgb(255, 80, 80));
+                                                        statusLabel.setText("FAILED TO CREATE!");
+                                                        btnCreate.setDisable(false);
+                                                    }
                                                 });
                                     })
                             .start();
@@ -644,48 +634,118 @@ public class LobbyController {
         title.setEffect(new DropShadow(8, Color.BLACK));
         leaderboardPanel.getChildren().add(title);
 
-        var leaderboardDao = new LeaderboardEntryDao(pool);
-        List<LeaderboardEntry> top = leaderboardDao.findTop10();
-
-        VBox listBox = new VBox(6);
-        listBox.setAlignment(Pos.CENTER);
-
-        if (top.isEmpty()) {
-            Label empty = new Label("NO DATA YET");
-            empty.setFont(loadRetroFont(12));
-            empty.setTextFill(Color.gray(0.5));
-            listBox.getChildren().add(empty);
-        } else {
-            int rank = 1;
-            for (LeaderboardEntry entry : top) {
-                HBox row = new HBox(30);
-                row.setAlignment(Pos.CENTER);
-
-                Label rankL = new Label("#" + rank);
-                rankL.setFont(loadRetroFont(14));
-                rankL.setTextFill(rank <= 3 ? Color.rgb(255, 204, 0) : Color.WHITE);
-                rankL.setMinWidth(50);
-
-                Label scoreL = new Label("SCORE: " + entry.getScore());
-                scoreL.setFont(loadRetroFont(11));
-                scoreL.setTextFill(Color.rgb(0, 255, 170));
-                scoreL.setMinWidth(180);
-
-                Label lvlL = new Label("LVL " + entry.getLevelCompleted());
-                lvlL.setFont(loadRetroFont(11));
-                lvlL.setTextFill(Color.rgb(68, 204, 255));
-
-                row.getChildren().addAll(rankL, scoreL, lvlL);
-                listBox.getChildren().add(row);
-                rank++;
-            }
-        }
-
-        Button btnBack = createTextButton("BACK");
-        btnBack.setOnAction(e -> hidePanel(leaderboardPanel));
-
-        leaderboardPanel.getChildren().addAll(listBox, btnBack);
+        // Показуємо статус завантаження
+        Label loadingLabel = new Label("LOADING...");
+        loadingLabel.setFont(loadRetroFont(10));
+        loadingLabel.setTextFill(Color.YELLOW);
+        leaderboardPanel.getChildren().add(loadingLabel);
         showPanel(leaderboardPanel);
+
+        new Thread(() -> {
+            OnlineService online = OnlineService.getInstance();
+            boolean isOnline = online.isOnline();
+            List<Map<String, String>> onlineData = null;
+            List<LeaderboardEntry> localData = null;
+
+            if (isOnline) {
+                onlineData = online.getLeaderboard();
+            }
+
+            // Якщо онлайн не вийшло або порожній — беремо локально
+            if (onlineData == null || onlineData.isEmpty()) {
+                var leaderboardDao = new LeaderboardEntryDao(pool);
+                localData = leaderboardDao.findTop10();
+            }
+
+            final List<Map<String, String>> finalOnline = onlineData;
+            final List<LeaderboardEntry> finalLocal = localData;
+            final boolean usedOnline = isOnline && finalOnline != null && !finalOnline.isEmpty();
+
+            Platform.runLater(() -> {
+                leaderboardPanel.getChildren().clear();
+
+                Label refreshedTitle = new Label(usedOnline ? "LEADERBOARD (ONLINE)" : "LEADERBOARD (LOCAL)");
+                refreshedTitle.setFont(loadRetroFont(22));
+                refreshedTitle.setTextFill(Color.WHITE);
+                refreshedTitle.setEffect(new DropShadow(8, Color.BLACK));
+                leaderboardPanel.getChildren().add(refreshedTitle);
+
+                VBox listBox = new VBox(6);
+                listBox.setAlignment(Pos.CENTER);
+
+                if (usedOnline) {
+                    if (finalOnline.isEmpty()) {
+                        Label empty = new Label("NO DATA YET");
+                        empty.setFont(loadRetroFont(12));
+                        empty.setTextFill(Color.gray(0.5));
+                        listBox.getChildren().add(empty);
+                    } else {
+                        int rank = 1;
+                        for (Map<String, String> entry : finalOnline) {
+                            HBox row = new HBox(20);
+                            row.setAlignment(Pos.CENTER);
+
+                            Label rankL = new Label("#" + rank);
+                            rankL.setFont(loadRetroFont(14));
+                            rankL.setTextFill(rank <= 3 ? Color.rgb(255, 204, 0) : Color.WHITE);
+                            rankL.setMinWidth(50);
+
+                            String scoreStr = entry.getOrDefault("score", "0");
+                            Label scoreL = new Label("SCORE: " + scoreStr);
+                            scoreL.setFont(loadRetroFont(11));
+                            scoreL.setTextFill(Color.rgb(0, 255, 170));
+                            scoreL.setMinWidth(180);
+
+                            String lvlStr = entry.getOrDefault("levelCompleted", "?");
+                            Label lvlL = new Label("MAX LVL " + lvlStr);
+                            lvlL.setFont(loadRetroFont(11));
+                            lvlL.setTextFill(Color.rgb(68, 204, 255));
+
+                            row.getChildren().addAll(rankL, scoreL, lvlL);
+                            listBox.getChildren().add(row);
+                            rank++;
+                            if (rank > 10) break;
+                        }
+                    }
+                } else {
+                    if (finalLocal == null || finalLocal.isEmpty()) {
+                        Label empty = new Label("NO DATA YET");
+                        empty.setFont(loadRetroFont(12));
+                        empty.setTextFill(Color.gray(0.5));
+                        listBox.getChildren().add(empty);
+                    } else {
+                        int rank = 1;
+                        for (LeaderboardEntry entry : finalLocal) {
+                            HBox row = new HBox(30);
+                            row.setAlignment(Pos.CENTER);
+
+                            Label rankL = new Label("#" + rank);
+                            rankL.setFont(loadRetroFont(14));
+                            rankL.setTextFill(rank <= 3 ? Color.rgb(255, 204, 0) : Color.WHITE);
+                            rankL.setMinWidth(50);
+
+                            Label scoreL = new Label("SCORE: " + entry.getScore());
+                            scoreL.setFont(loadRetroFont(11));
+                            scoreL.setTextFill(Color.rgb(0, 255, 170));
+                            scoreL.setMinWidth(180);
+
+                            Label lvlL = new Label("LVL " + entry.getLevelCompleted());
+                            lvlL.setFont(loadRetroFont(11));
+                            lvlL.setTextFill(Color.rgb(68, 204, 255));
+
+                            row.getChildren().addAll(rankL, scoreL, lvlL);
+                            listBox.getChildren().add(row);
+                            rank++;
+                        }
+                    }
+                }
+
+                Button btnBack = createTextButton("BACK");
+                btnBack.setOnAction(e -> hidePanel(leaderboardPanel));
+
+                leaderboardPanel.getChildren().addAll(listBox, btnBack);
+            });
+        }).start();
     }
 
     private void showOptions() {
@@ -701,7 +761,103 @@ public class LobbyController {
     }
 
     private void showSavesPanel() {
+        // Перебудовуємо панель з актуальними даними
+        savesPanel.getChildren().clear();
+
+        Label title = new Label("SAVED GAMES");
+        title.setFont(loadRetroFont(28));
+        title.setTextFill(Color.WHITE);
+        title.setEffect(new DropShadow(8, Color.BLACK));
+        savesPanel.getChildren().add(title);
+
+        Label loadingLabel = new Label("LOADING...");
+        loadingLabel.setFont(loadRetroFont(10));
+        loadingLabel.setTextFill(Color.YELLOW);
+        savesPanel.getChildren().add(loadingLabel);
         showPanel(savesPanel);
+
+        new Thread(() -> {
+            OnlineService online = OnlineService.getInstance();
+            boolean isOnline = online.isOnline();
+            List<Map<String, String>> onlineSaves = null;
+            List<GameSave> localSaves = null;
+
+            if (isOnline) {
+                onlineSaves = online.loadSavesOnline();
+            }
+
+            // Якщо онлайн порожній — локально
+            if (onlineSaves == null || onlineSaves.isEmpty()) {
+                GameSaveDao saveDao = new GameSaveDao(LostDatabaseApp.getConnectionPool());
+                localSaves = saveDao.findByPlayerId(currentPlayer.getId());
+            }
+
+            final List<Map<String, String>> finalOnline = onlineSaves;
+            final List<GameSave> finalLocal = localSaves;
+            final boolean usedOnline = isOnline && finalOnline != null && !finalOnline.isEmpty();
+
+            Platform.runLater(() -> {
+                savesPanel.getChildren().clear();
+
+                Label refreshedTitle = new Label(usedOnline ? "SAVES (ONLINE)" : "SAVES (LOCAL)");
+                refreshedTitle.setFont(loadRetroFont(22));
+                refreshedTitle.setTextFill(Color.WHITE);
+                refreshedTitle.setEffect(new DropShadow(8, Color.BLACK));
+                savesPanel.getChildren().add(refreshedTitle);
+
+                VBox listBox = new VBox(8);
+                listBox.setAlignment(Pos.CENTER);
+
+                if (usedOnline) {
+                    for (Map<String, String> save : finalOnline) {
+                        String name = save.getOrDefault("saveName", "Save");
+                        String lvl = save.getOrDefault("currentLevel", "?");
+                        String hp = save.getOrDefault("health", "?");
+                        String label = name + " | LVL " + lvl + " | HP:" + hp;
+
+                        Button btnLoad = createTextButton(label);
+                        btnLoad.setFont(loadRetroFont(9));
+                        btnLoad.setOnAction(e -> {
+                            hidePanel(savesPanel);
+                            
+                            // Reconstruct GameSave from online data
+                            GameSave osave = new GameSave();
+                            osave.setCurrentLevel(Integer.parseInt(lvl));
+                            osave.setHealth(Integer.parseInt(hp));
+                            osave.setSanity(save.containsKey("sanity") ? Double.parseDouble(save.get("sanity")) : 100.0);
+                            osave.setPositionX(save.containsKey("positionX") ? Double.parseDouble(save.get("positionX")) : 0);
+                            osave.setPositionY(save.containsKey("positionY") ? Double.parseDouble(save.get("positionY")) : 0);
+                            
+                            startGameDirectly(osave);
+                        });
+                        listBox.getChildren().add(btnLoad);
+                    }
+                } else if (finalLocal != null && !finalLocal.isEmpty()) {
+                    for (GameSave s : finalLocal) {
+                        String label = s.getSaveName()
+                                + " | LVL " + s.getCurrentLevel()
+                                + " | HP:" + s.getHealth();
+                        Button btnLoad = createTextButton(label);
+                        btnLoad.setFont(loadRetroFont(11));
+                        btnLoad.setOnAction(e -> {
+                            hidePanel(savesPanel);
+                            startGameDirectly(s);
+                        });
+                        listBox.getChildren().add(btnLoad);
+                    }
+                } else {
+                    Label empty = new Label("NO SAVES FOUND");
+                    empty.setFont(loadRetroFont(12));
+                    empty.setTextFill(Color.GRAY);
+                    listBox.getChildren().add(empty);
+                }
+
+                Button btnBack = createTextButton("BACK");
+                btnBack.setOnAction(e -> hidePanel(savesPanel));
+
+                savesPanel.getChildren().addAll(listBox, btnBack);
+            });
+        }).start();
     }
 
     private void showMultiplayerPanel() {
@@ -730,6 +886,8 @@ public class LobbyController {
                                                                     .getResource(
                                                                             "/fxml/game_scene.fxml"));
                                             javafx.scene.Parent gameRoot = loader.load();
+                                            GameController gc = loader.getController();
+                                            gc.setDbPlayer(currentPlayer);
                                             scene.setRoot(gameRoot);
                                         } catch (Exception ex) {
                                             ex.printStackTrace();
@@ -742,6 +900,21 @@ public class LobbyController {
                         });
 
         scene.setRoot(cutsceneRoot);
+    }
+
+    private void startGameDirectly(GameSave save) {
+        if (musicPlayer != null) musicPlayer.pause();
+        javafx.scene.Scene scene = rootStack.getScene();
+        try {
+            javafx.fxml.FXMLLoader loader = new javafx.fxml.FXMLLoader(getClass().getResource("/fxml/game_scene.fxml"));
+            javafx.scene.Parent gameRoot = loader.load();
+            GameController gc = loader.getController();
+            gc.setDbPlayer(currentPlayer);
+            gc.loadFromSave(save);
+            scene.setRoot(gameRoot);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     // ═══════════════════════════════════════════════════════

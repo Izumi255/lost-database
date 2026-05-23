@@ -47,16 +47,31 @@ public class JungleMap implements Serializable {
 
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
-                    boolean isSolid = false;
+                    int tileId = 0;
                     for (int[][] layer : tmxLayers) {
                         int id = layer[y][x];
                         if (id > 0) {
-                            isSolid = true;
+                            tileId = id;
                             break;
                         }
                     }
-                    if (isSolid) {
-                        grid[x][y] = TileType.GROUND;
+                    if (tileId > 0) {
+                        // Slope tiles:
+                        // 121 = gentle slope up (first half), 122 = second half
+                        // 90 = steep ascending slope (0 → full height)
+                        // 91 = steep descending slope (full height → 0)
+                        // 106, 107 = solid ground below slopes
+                        if (tileId == 121) {
+                            grid[x][y] = TileType.SLOPE_LEFT;
+                        } else if (tileId == 122) {
+                            grid[x][y] = TileType.SLOPE_LEFT_2;
+                        } else if (tileId == 90) {
+                            grid[x][y] = TileType.SLOPE_RIGHT_2; // steep ascending
+                        } else if (tileId == 91) {
+                            grid[x][y] = TileType.SLOPE_RIGHT; // steep descending
+                        } else {
+                            grid[x][y] = TileType.GROUND;
+                        }
                     }
                 }
             }
@@ -69,13 +84,17 @@ public class JungleMap implements Serializable {
                     break;
                 }
             }
-            this.cockpitX = width - 4;
+            this.cockpitX = 40;
             this.cockpitY = height - 5;
             for (int sy = 0; sy < height; sy++) {
-                if (isSolid(width - 4, sy)) {
+                if (isSolid(40, sy)) {
                     this.cockpitY = Math.max(0, sy - 1);
                     break;
                 }
+            }
+            // Place cockpit tile on the grid so it renders
+            if (cockpitX >= 0 && cockpitY >= 0 && cockpitX < width && cockpitY < height) {
+                this.grid[cockpitX][cockpitY] = TileType.COCKPIT_WRECKAGE;
             }
         } else {
             this.width = 30;
@@ -108,6 +127,22 @@ public class JungleMap implements Serializable {
         return cockpitY;
     }
 
+    public void setCockpitPosition(int x) {
+        this.cockpitX = x;
+        this.cockpitY = height - 5;
+        for (int sy = 0; sy < height; sy++) {
+            if (isSolid(x, sy)) {
+                this.cockpitY = Math.max(0, sy - 1);
+                break;
+            }
+        }
+    }
+
+    public void setCockpitPosition(int x, int y) {
+        this.cockpitX = x;
+        this.cockpitY = y;
+    }
+
     public TileType getTile(int x, int y) {
         if (x < 0 || x >= width || y < 0 || y >= height) return TileType.JUNGLE_TREE;
         return grid[x][y];
@@ -122,7 +157,46 @@ public class JungleMap implements Serializable {
         TileType t = getTile(x, y);
         return t == TileType.GROUND
                 || t == TileType.FLOATING_PLATFORM
-                || t == TileType.COCKPIT_WRECKAGE;
+                || t == TileType.COCKPIT_WRECKAGE
+                || t == TileType.SLOPE_LEFT
+                || t == TileType.SLOPE_LEFT_2
+                || t == TileType.SLOPE_RIGHT
+                || t == TileType.SLOPE_RIGHT_2;
+    }
+
+    public boolean isSlope(int x, int y) {
+        TileType t = getTile(x, y);
+        return t == TileType.SLOPE_LEFT
+                || t == TileType.SLOPE_LEFT_2
+                || t == TileType.SLOPE_RIGHT
+                || t == TileType.SLOPE_RIGHT_2;
+    }
+
+    /**
+     * Returns the ground height (in pixels from top of tile) at a given pixel X within a slope
+     * tile. For SLOPE_LEFT (121): rises from left to right (low at left, high at right). For
+     * SLOPE_RIGHT (91): falls from left to right (high at left, low at right). Returns TILE_SIZE
+     * (full block) for non-slope tiles.
+     */
+    public double getSlopeHeight(int tileX, int tileY, double pixelX, int tileSize) {
+        TileType t = getTile(tileX, tileY);
+        double localX = pixelX - tileX * tileSize;
+        double fraction = Math.max(0, Math.min(1, localX / tileSize));
+
+        if (t == TileType.SLOPE_LEFT) {
+            // First half of the gentle slope: 0 to 0.5 height
+            return fraction * (tileSize / 2.0);
+        } else if (t == TileType.SLOPE_LEFT_2) {
+            // Second half of the gentle slope: 0.5 to 1.0 height
+            return (tileSize / 2.0) + (fraction * (tileSize / 2.0));
+        } else if (t == TileType.SLOPE_RIGHT) {
+            // Steep descending: full height at left, zero at right (tile 91)
+            return (1.0 - fraction) * tileSize;
+        } else if (t == TileType.SLOPE_RIGHT_2) {
+            // Steep ascending: zero at left, full height at right (tile 90)
+            return fraction * tileSize;
+        }
+        return tileSize; // Full block
     }
 
     public boolean isHazard(int x, int y) {

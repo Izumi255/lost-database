@@ -27,6 +27,8 @@ public class TmxMapLoader {
     public static class TmxData {
         public List<int[][]> layers = new ArrayList<>();
         public List<TmxObject> objects = new ArrayList<>();
+        public int tileWidth = 32;
+        public int columns = 16;
     }
 
     public static TmxData loadMap(String path) {
@@ -45,6 +47,26 @@ public class TmxMapLoader {
             Element mapElement = (Element) doc.getElementsByTagName("map").item(0);
             int width = Integer.parseInt(mapElement.getAttribute("width"));
             int height = Integer.parseInt(mapElement.getAttribute("height"));
+
+            NodeList tilesets = doc.getElementsByTagName("tileset");
+            if (tilesets.getLength() > 0) {
+                Element ts = (Element) tilesets.item(0);
+                if (ts.hasAttribute("tilewidth")) {
+                    result.tileWidth = Integer.parseInt(ts.getAttribute("tilewidth"));
+                }
+                if (ts.hasAttribute("columns")) {
+                    result.columns = Integer.parseInt(ts.getAttribute("columns"));
+                } else if (ts.hasAttribute("tilewidth")) {
+                    // estimate columns if not present (usually width of image / tilewidth)
+                    NodeList imgs = ts.getElementsByTagName("image");
+                    if (imgs.getLength() > 0) {
+                        Element img = (Element) imgs.item(0);
+                        if (img.hasAttribute("width")) {
+                            result.columns = Integer.parseInt(img.getAttribute("width")) / result.tileWidth;
+                        }
+                    }
+                }
+            }
 
             NodeList dataList = doc.getElementsByTagName("data");
             for (int i = 0; i < dataList.getLength(); i++) {

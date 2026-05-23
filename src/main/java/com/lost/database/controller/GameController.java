@@ -1,13 +1,15 @@
 package com.lost.database.controller;
 
 import com.lost.database.app.LostDatabaseApp;
-import com.lost.database.dao.GameSessionDao;
-import com.lost.database.entity.GameSession;
+import com.lost.database.dao.GameSaveDao;
+import com.lost.database.entity.GameSave;
 import com.lost.database.entity.Player;
 import com.lost.database.game.entity.GamePlayer;
 import com.lost.database.game.world.JungleMap;
 import com.lost.database.game.world.TileMapRenderer;
 import com.lost.database.game.world.TileType;
+import com.lost.database.infrastructure.OnlineService;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.Set;
 import javafx.animation.AnimationTimer;
 import javafx.animation.PauseTransition;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
@@ -97,10 +101,14 @@ public class GameController {
     // Mission items
     private Image cockpitImage;
     private Image transceiverImage;
+    private Image antennaImage; // The big tower on the map
+    private Image itemAntennaImage; // The small part for the inventory
+    private Image itemMedkitImage; // Medkit icon
 
     // NPC Portraits
     private Image jackPortrait;
     private Image katePortrait;
+    private Image sayidPortrait;
 
     // Dialogue System
     private boolean isDialogueActive = false;
@@ -142,9 +150,24 @@ public class GameController {
 
     // Level management
     private int currentLevel = 1;
-    private static final int MAX_LEVELS = 3;
+    private int maxLevelReached = 1;
+    private static final int MAX_LEVELS = 4;
     private boolean levelComplete = false;
     private double levelCompleteTimer = 0;
+    private boolean gameWon = false;
+    
+    // --- FINAL LEVEL MECHANICS ---
+    private boolean isTerminalActive = false;
+    private StringBuilder terminalInput = new StringBuilder();
+    private boolean terminalError = false;
+    private double terminalErrorTimer = 0;
+    private Image teleportSprite;
+    private Image hatchSprite;
+    private Image terminalBgSprite;
+    private Image bunkerTileset;
+    private Image bunkerWallBg;
+    private boolean canInteractTeleport = false;
+    private boolean canInteractHatch = false;
 
     // Sprite render size (visual)
     private static final double SPRITE_RENDER_W = 40;
@@ -153,17 +176,32 @@ public class GameController {
     // --- ENEMY SYSTEM ---
     private List<Enemy> enemies = new ArrayList<>();
 
+    // --- MULTIPLAYER ---
+    private List<com.lost.database.game.entity.RemotePlayer> remotePlayers = new ArrayList<>();
+    private com.lost.database.infrastructure.MultiplayerService multiplayerService = com.lost.database.infrastructure.MultiplayerService.getInstance();
+    private double multiplayerSyncTimer = 0;
+
     // --- ITEM SYSTEM ---
     private List<ItemDrop> items = new ArrayList<>();
 
-    // --- KATE NPC ---
+    // --- NPC SYSTEM (universal) ---
     private Image kateIdleSprite;
+    private Image sayidIdleSprite;
+    private Image benIdleSprite;
+    private Image npcCurrentSprite; // currently active NPC sprite
+    private String npcName = "Кейт";
     private double kateX, kateY;
     private boolean kateExists = false;
     private boolean kateTalkedTo = false;
     private static final double KATE_W = 80;
     private static final double KATE_H = 120;
     private static final double KATE_INTERACT_RANGE = 100;
+    // NPC appearance colors (change per level)
+    private Color npcHairColor = Color.rgb(101, 67, 33);
+    private Color npcSkinColor = Color.rgb(222, 184, 150);
+    private Color npcShirtColor = Color.rgb(160, 160, 155);
+    private Color npcPantsColor = Color.rgb(95, 110, 70);
+    private Color npcEyeColor = Color.rgb(60, 100, 60);
 
     // --- GAME STATE ---
     private boolean isPaused = false;
@@ -171,6 +209,7 @@ public class GameController {
     private double gameOverTimer = 0;
     private double damageFlashTimer = 0;
     private double sanity = 100.0;
+    private double gameElapsedTime = 0; // Час гри в секундах (для score)
     private Image[] ghostFrames; // 6 frames: sprite_0..5.png (facing left)
 
     // Simple HUD colors
@@ -192,6 +231,8 @@ public class GameController {
         jungleTileset = safeLoad("/images/Jungle.png");
         jungleCanopy = safeLoad("/images/Jungle_Canopy.png");
         tmxTileset = safeLoadTexture("Tilesheet - WOODS.png");
+        bunkerTileset = safeLoad("/assets/levels/Platformer_Dungeon Asset Pack/TileSet/TileSet.png");
+        bunkerWallBg = safeLoad("/assets/levels/Platformer_Dungeon Asset Pack/Wall/Wall.png");
         System.out.println("✓ Tileset loaded: " + (tmxTileset != null && !tmxTileset.isError()));
 
         // Load decoration sprites
@@ -231,6 +272,9 @@ public class GameController {
         // Mission items
         cockpitImage = safeLoad("/images/cockpit_wreckage.png");
         transceiverImage = safeLoad("/images/item_transceiver.png");
+        antennaImage = safeLoad("/images/radio_tower.png");
+        itemAntennaImage = safeLoad("/images/item_antenna.png");
+        itemMedkitImage = safeLoad("/images/item_medkit.png");
 
         // NPC Portraits
         jackPortrait = safeLoad("/assets/sprites/sayid_serious.png");
@@ -238,6 +282,13 @@ public class GameController {
 
         // Kate idle sprite for world rendering
         kateIdleSprite = safeLoad("/assets/sprites/dialog/kate_idle.png");
+        sayidIdleSprite = safeLoad("/assets/sprites/sayid_idle.png");
+        benIdleSprite = safeLoad("/assets/sprites/ben_idle.png");
+        
+        // Final Level Objects
+        teleportSprite = safeLoad("/assets/sprites/teleport.png");
+        hatchSprite = safeLoad("/assets/sprites/hatch.png");
+        terminalBgSprite = safeLoad("/assets/sprites/terminal.png");
 
         // Load ghost animation frames (facing left)
         ghostFrames = new Image[6];
@@ -329,34 +380,89 @@ public class GameController {
                 };
         gameLoop.start();
 
-        // Spawn Kate NPC for Level 1
-        if (currentLevel == 1) {
-            spawnKateNPC();
-        }
+        // Spawn NPC for current level
+        spawnNpcForLevel(currentLevel);
+        
+        // Restore save state if loaded from save
+        javafx.application.Platform.runLater(this::applyPendingSave);
     }
 
     // --- DIALOGUE SYSTEM ---
-    private void startLevel1Cutscene() {
-        List<String[]> kateDialog = new ArrayList<>();
-        kateDialog.add(
-                new String[] {
-                    "Кейт",
-                    "kate",
-                    "Гей, обережніше там! Дехто з тих, хто пішов за водою, так і не повернувся."
-                });
-        kateDialog.add(new String[] {"Кейт", "kate", "Кажуть, вони бачили... щось серед дерев."});
-        kateDialog.add(
-                new String[] {
-                    "Гравець",
-                    "jack",
-                    "Я мушу знайти кабіну пілотів, Кейт. Без трансивера ми тут назавжди."
-                });
-        kateDialog.add(
-                new String[] {
-                    "Кейт", "kate", "Тримай очі відкритими. Якщо почуєш дивні звуки — краще біжи."
-                });
-
-        startDialogue(kateDialog);
+    private void startLevelCutscene() {
+        List<String[]> dialog = new ArrayList<>();
+        switch (currentLevel) {
+            case 1:
+                dialog.add(
+                        new String[] {
+                            "Кейт",
+                            "kate",
+                            "Гей, обережніше там! Дехто з тих, хто пішов за водою, так і не повернувся."
+                        });
+                dialog.add(
+                        new String[] {"Кейт", "kate", "Кажуть, вони бачили... щось серед дерев."});
+                dialog.add(
+                        new String[] {
+                            "Гравець",
+                            "jack",
+                            "Я мушу знайти кабіну пілотів, Кейт. Без трансивера ми тут назавжди."
+                        });
+                dialog.add(
+                        new String[] {
+                            "Кейт",
+                            "kate",
+                            "Тримай очі відкритими. Якщо почуєш дивні звуки — краще біжи."
+                        });
+                break;
+            case 2:
+                dialog.add(
+                        new String[] {
+                            "Саїд",
+                            "sayid",
+                            "Ти знайшов трансивер? Добре. Але він зламаний — без антени марний."
+                        });
+                dialog.add(
+                        new String[] {
+                            "Саїд", "sayid", "Я обстежив територію на півночі. Там є щось дивне..."
+                        });
+                dialog.add(
+                        new String[] {
+                            "Саїд",
+                            "sayid",
+                            "Металевий люк у землі. Він веде кудись під землю. Можливо, там є обладнання."
+                        });
+                dialog.add(new String[] {"Гравець", "jack", "Люк? Що ще за люк посеред джунглів?"});
+                dialog.add(
+                        new String[] {
+                            "Саїд",
+                            "sayid",
+                            "Не знаю. Але на ньому вигравіювані цифри. Будь обережний."
+                        });
+                break;
+            case 3:
+                dialog.add(new String[] {"Бен", "ben", "Стій. Ти не повинен був сюди потрапити."});
+                dialog.add(new String[] {"Гравець", "jack", "Хто ти? Ти живеш тут?"});
+                dialog.add(
+                        new String[] {
+                            "Бен",
+                            "ben",
+                            "Цей острів — особливе місце. Він не відпускає тих, хто сюди потрапив."
+                        });
+                dialog.add(
+                        new String[] {
+                            "Бен",
+                            "ben",
+                            "Бачиш той комп'ютер? Кожні 108 хвилин хтось має ввести числа. Інакше... все закінчиться."
+                        });
+                dialog.add(new String[] {"Гравець", "jack", "Які числа?"});
+                dialog.add(
+                        new String[] {
+                            "Бен",
+                            "ben",
+                            "4... 8... 15... 16... 23... 42. Тільки в правильному порядку."
+                        });
+                break;
+        }
+        startDialogue(dialog);
     }
 
     private void startDialogue(List<String[]> sequence) {
@@ -394,6 +500,12 @@ public class GameController {
             portraitImage.setVisible(true);
         } else if (portraitKey.equals("kate")) {
             portraitImage.setImage(katePortrait);
+            portraitImage.setVisible(true);
+        } else if (portraitKey.equals("sayid")) {
+            portraitImage.setImage(sayidPortrait != null ? sayidPortrait : jackPortrait);
+            portraitImage.setVisible(true);
+        } else if (portraitKey.equals("ben")) {
+            portraitImage.setImage(jackPortrait);
             portraitImage.setVisible(true);
         } else {
             portraitImage.setVisible(false);
@@ -446,6 +558,26 @@ public class GameController {
         // If no enemies found in map (TMX levels), spawn ghosts programmatically
         if (!foundAny) {
             spawnGhostsForLevel(currentLevel);
+        }
+    }
+
+    private void spawnItemsForLevel(int level) {
+        // Scatter some medkits across the level
+        switch (level) {
+            case 1:
+                items.add(new ItemDrop(20 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                items.add(new ItemDrop(45 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                break;
+            case 2:
+                items.add(new ItemDrop(15 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                items.add(new ItemDrop(35 * TILE_SIZE, 4 * TILE_SIZE, "health_pack", 30));
+                items.add(new ItemDrop(55 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                break;
+            case 3:
+                items.add(new ItemDrop(10 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                items.add(new ItemDrop(30 * TILE_SIZE, 3 * TILE_SIZE, "health_pack", 30));
+                items.add(new ItemDrop(50 * TILE_SIZE, 7 * TILE_SIZE, "health_pack", 30));
+                break;
         }
     }
 
@@ -508,6 +640,8 @@ public class GameController {
                 }
             }
         }
+        // Scatter medkits for the current level (after items.clear)
+        spawnItemsForLevel(currentLevel);
     }
 
     private static class ItemDrop {
@@ -539,6 +673,35 @@ public class GameController {
         if (levelComplete) {
             if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE) loadNextLevel();
             return;
+        }
+
+        // Intercept input for Terminal
+        if (isTerminalActive) {
+            if (e.getCode() == KeyCode.BACK_SPACE) {
+                if (terminalInput.length() > 0) {
+                    terminalInput.setLength(terminalInput.length() - 1);
+                }
+            } else if (e.getCode() == KeyCode.ENTER) {
+                // Check code
+                if ("4 8 15 16 23 42".equals(terminalInput.toString().trim())) {
+                    System.out.println("CODE ACCEPTED. GAME WON!");
+                    gameWon = true;
+                    showVictoryScreen();
+                } else {
+                    terminalError = true;
+                    terminalErrorTimer = 1.5;
+                    terminalInput.setLength(0); // clear input
+                }
+            } else if (e.getCode() == KeyCode.ESCAPE) {
+                // Exit terminal view
+                isTerminalActive = false;
+            } else {
+                String text = e.getText();
+                if (text != null && text.matches("[0-9 ]")) {
+                    terminalInput.append(text);
+                }
+            }
+            return; // Block other inputs
         }
 
         // Intercept input for dialogue
@@ -588,10 +751,15 @@ public class GameController {
             levelCompleteTimer += dt;
             return;
         }
+        if (isTerminalActive) {
+            if (terminalErrorTimer > 0) terminalErrorTimer -= dt;
+            return;
+        }
 
         // Dash cooldown
         if (dashCooldown > 0) dashCooldown -= dt;
         if (landingTimer > 0) landingTimer -= dt;
+        gameElapsedTime += dt; // Відстежуємо час гри
 
         // Update damage cooldown
         player.updateCooldown(dt);
@@ -621,9 +789,9 @@ public class GameController {
             // Apply gravity
             player.setVy(player.getVy() + GRAVITY * dt);
 
-            // Integrate X
+            // Integrate X (ignore slopes for horizontal checks)
             double nextX = player.getX() + player.getVx() * dt;
-            if (collidesAt(nextX, player.getY())) {
+            if (collidesAtIgnoreSlopes(nextX, player.getY(), player.getVx())) {
                 if (player.getVx() > 0) {
                     int tileX = (int) ((nextX + PLAYER_W) / TILE_SIZE);
                     nextX = tileX * TILE_SIZE - PLAYER_W - 0.1;
@@ -635,14 +803,35 @@ public class GameController {
             }
             player.setX(nextX);
 
+            // Snap to slope surface after horizontal movement
+            if (player.isGrounded() || wasGroundedLastFrame) {
+                double snappedY = snapToSlopeY(player.getX(), player.getY());
+                if (snappedY != player.getY()) {
+                    player.setY(snappedY);
+                    player.setGrounded(true);
+                }
+            }
+
             // Integrate Y
             double nextY = player.getY() + player.getVy() * dt;
             player.setGrounded(false);
 
             if (collidesAt(player.getX(), nextY)) {
                 if (player.getVy() > 0) {
-                    int tileY = (int) ((nextY + PLAYER_H) / TILE_SIZE);
-                    nextY = tileY * TILE_SIZE - PLAYER_H - 0.1;
+                    // Check if landing on a slope tile
+                    int footTileX = (int) ((player.getX() + PLAYER_W / 2.0) / TILE_SIZE);
+                    int footTileY = (int) ((nextY + PLAYER_H) / TILE_SIZE);
+                    if (jungleMap.isSlope(footTileX, footTileY)) {
+                        double playerCenterX = player.getX() + PLAYER_W / 2.0;
+                        double slopeHeight =
+                                jungleMap.getSlopeHeight(
+                                        footTileX, footTileY, playerCenterX, TILE_SIZE);
+                        double slopeTop = (footTileY + 1) * TILE_SIZE - slopeHeight;
+                        nextY = slopeTop - PLAYER_H - 0.1;
+                    } else {
+                        int tileY = (int) ((nextY + PLAYER_H) / TILE_SIZE);
+                        nextY = tileY * TILE_SIZE - PLAYER_H - 0.1;
+                    }
                     player.setGrounded(true);
                     // Landing animation trigger — only after real jump
                     if (!wasGroundedLastFrame && airborneTimer > 0.05) {
@@ -697,11 +886,19 @@ public class GameController {
                             enemy.w,
                             enemy.h)) {
                 if (enemy.isGhost) {
-                    sanity -= 20 * dt;
+                    sanity -= 50 * dt; // Increased sanity drain (dies in 2 seconds instead of 5)
                     if (sanity <= 0) {
                         sanity = 0;
                         gameOver = true;
                         gameOverTimer = 0;
+                    }
+                    // Ghosts now also do physical damage and knockback
+                    if (player.takeDamage(10)) {
+                        damageFlashTimer = 0.3;
+                        double knockDir = (player.getX() < enemy.x) ? -1 : 1;
+                        player.setVx(knockDir * 200);
+                        player.setVy(-200);
+                        player.setGrounded(false);
                     }
                 } else if (player.takeDamage(15)) {
                     damageFlashTimer = 0.3;
@@ -788,6 +985,81 @@ public class GameController {
 
         // Check proximity to cockpit / level exit
         checkProximity();
+
+        // Check if player reached right edge of map → level complete
+        if (!levelComplete && !missionComplete) {
+            double mapRightEdge = (jungleMap.getWidth() - 3) * TILE_SIZE;
+            if (player.getX() >= mapRightEdge) {
+                if (currentLevel == 2) {
+                    // level 2 waits for teleport 'E' instead of edge walk, so don't auto-complete
+                } else if (currentLevel == 3) {
+                    // level 3 waits for hatch 'E', so don't auto-complete
+                } else {
+                    missionComplete = true;
+                    levelComplete = true;
+                    levelCompleteTimer = 0;
+                    System.out.println("✓ Level " + currentLevel + " completed!");
+                    maxLevelReached = Math.max(maxLevelReached, currentLevel + 1);
+
+                    submitScoreOnline();
+
+                    if (currentLevel == 1) {
+                        showMission("📡 Рівень пройдено! Натисни ENTER");
+                    } else if (currentLevel == 2) {
+                        showMission("🚪 Люк знайдено! Натисни ENTER");
+                    } else {
+                        showMission("🏝 Сигнал відправлено! Натисни ENTER");
+                    }
+                }
+            }
+        }
+
+        // --- MULTIPLAYER SYNC ---
+        if (multiplayerService.getCurrentSessionId() != null) {
+            multiplayerSyncTimer += dt;
+            if (multiplayerSyncTimer >= 0.1) {
+                multiplayerSyncTimer = 0;
+                int dir = facingRight ? 1 : -1;
+                multiplayerService.syncPosition(player.getX(), player.getY(), player.getHealth(), dir, animState.name());
+                
+                List<java.util.Map<String, String>> state = multiplayerService.getSessionState();
+                long myId = com.lost.database.infrastructure.OnlineService.getInstance().getOnlinePlayerId();
+                
+                remotePlayers.removeIf(rp -> {
+                    for (java.util.Map<String, String> p : state) {
+                        if (p.containsKey("playerId") && Long.parseLong(p.get("playerId")) == rp.getPlayerId()) return false;
+                    }
+                    return true;
+                });
+                
+                for (java.util.Map<String, String> p : state) {
+                    if (!p.containsKey("playerId")) continue;
+                    long pid = Long.parseLong(p.get("playerId"));
+                    if (pid == myId) continue;
+                    
+                    com.lost.database.game.entity.RemotePlayer rp = remotePlayers.stream().filter(r -> r.getPlayerId() == pid).findFirst().orElse(null);
+                    if (rp == null) {
+                        rp = new com.lost.database.game.entity.RemotePlayer(pid);
+                        remotePlayers.add(rp);
+                    }
+                    
+                    double px = Double.parseDouble(p.getOrDefault("positionX", "0"));
+                    double py = Double.parseDouble(p.getOrDefault("positionY", "0"));
+                    int hp = Integer.parseInt(p.getOrDefault("health", "100"));
+                    boolean alive = Boolean.parseBoolean(p.getOrDefault("alive", "true"));
+                    int direction = Integer.parseInt(p.getOrDefault("direction", "1"));
+                    String aState = p.getOrDefault("animationState", "IDLE");
+                    String uname = p.getOrDefault("username", "Player " + pid);
+                    
+                    rp.updateState(px, py, hp, alive, direction, aState);
+                    rp.setUsername(uname);
+                }
+            }
+            
+            for (com.lost.database.game.entity.RemotePlayer rp : remotePlayers) {
+                rp.update(dt);
+            }
+        }
     }
 
     // --- RENDER ---
@@ -798,22 +1070,131 @@ public class GameController {
 
         if (canvasW <= 0 || canvasH <= 0) return;
 
+        // Disable smoothing for crisp retro pixel art
+        gc.setImageSmoothing(false);
+
         // Clear background (jungle sky)
         gc.setFill(Color.web("#1B3A2D"));
         gc.fillRect(0, 0, canvasW, canvasH);
+        
+        // --- LEVEL 4 (TERMINAL) RENDER ---
+        if (isTerminalActive) {
+            gc.setFill(Color.BLACK);
+            gc.fillRect(0, 0, canvasW, canvasH);
+            if (isValidImage(terminalBgSprite)) {
+                gc.drawImage(terminalBgSprite, 0, 0, canvasW, canvasH);
+            }
+            
+            // Draw retro text
+            gc.setFont(Font.font("Monospace", FontWeight.BOLD, 24));
+            
+            if (terminalError) {
+                gc.setFill(Color.RED);
+                gc.fillText("> SYSTEM FAILURE", canvasW / 2 - 100, canvasH / 2 - 20);
+            } else {
+                gc.setFill(Color.rgb(50, 255, 50));
+                gc.fillText("> ENTER SEQUENCE:", canvasW / 2 - 120, canvasH / 2 - 40);
+                gc.fillText("> " + terminalInput.toString() + "_", canvasW / 2 - 120, canvasH / 2 + 10);
+            }
+            return;
+        }
 
-        // Draw parallax background layers (farthest → nearest)
-        drawParallax(gc, bgLayer0, 0.0, canvasW, canvasH); // Static sky
-        drawParallax(gc, bgLayer1, 0.05, canvasW, canvasH); // Far trees
-        drawParallax(gc, bgLayer2, 0.1, canvasW, canvasH); // Mid trees
-        drawParallax(gc, bgLayer3, 0.2, canvasW, canvasH); // Near trees
-        drawParallax(gc, bgLayer4, 0.3, canvasW, canvasH); // Bushes
+        if (currentLevel == 4) {
+            // Bunker static background tiling
+            if (isValidImage(bunkerWallBg)) {
+                double iw = bunkerWallBg.getWidth() * 2; // scale by 2 for retro look
+                double ih = bunkerWallBg.getHeight() * 2;
+                double offsetX = -(cameraX % iw);
+                double offsetY = -(cameraY % ih);
+                if (offsetX > 0) offsetX -= iw;
+                if (offsetY > 0) offsetY -= ih;
+
+                for (double x = offsetX; x < canvasW; x += iw) {
+                    for (double y = offsetY; y < canvasH; y += ih) {
+                        gc.drawImage(bunkerWallBg, x, y, iw, ih);
+                    }
+                }
+            } else {
+                gc.setFill(Color.web("#1c1c1c"));
+                gc.fillRect(0, 0, canvasW, canvasH);
+            }
+        } else {
+            // Draw parallax background layers (farthest → nearest) for jungle
+            drawParallax(gc, bgLayer0, 0.0, canvasW, canvasH); // Static sky
+            drawParallax(gc, bgLayer1, 0.05, canvasW, canvasH); // Far trees
+            drawParallax(gc, bgLayer2, 0.1, canvasW, canvasH); // Mid trees
+            drawParallax(gc, bgLayer3, 0.2, canvasW, canvasH); // Near trees
+            drawParallax(gc, bgLayer4, 0.3, canvasW, canvasH); // Bushes
+        }
 
         // 1. Draw tiles from TMX
         if (jungleMap.isTmx()) {
             TileMapRenderer renderer = new TileMapRenderer();
+            Image activeTileset = (currentLevel == 4) ? bunkerTileset : tmxTileset;
+            int srcSize = (currentLevel == 4) ? 16 : 32;
+            int srcCols = (currentLevel == 4) ? 11 : 16;
+            
             for (int[][] layer : jungleMap.getTmxLayers()) {
-                renderer.render(gc, layer, tmxTileset, cameraX, cameraY, canvasW, canvasH);
+                renderer.render(gc, layer, activeTileset, cameraX, cameraY, canvasW, canvasH, srcSize, srcCols);
+            }
+            // Draw cockpit wreckage on level 1 only
+            if (currentLevel == 1 && !missionComplete) {
+                double cockpitDrawX = jungleMap.getCockpitX() * TILE_SIZE - cameraX;
+                double cockpitDrawY = jungleMap.getCockpitY() * TILE_SIZE - cameraY;
+                if (cockpitDrawX > -128
+                        && cockpitDrawX < canvasW + 128
+                        && cockpitDrawY > -128
+                        && cockpitDrawY < canvasH + 128) {
+                    drawCockpit(gc, cockpitDrawX, cockpitDrawY);
+                }
+            }
+            // Draw radio tower on level 2 only (stays even after collecting part)
+            if (currentLevel == 2) {
+                double antennaDrawX = jungleMap.getCockpitX() * TILE_SIZE - cameraX;
+                double antennaDrawY = jungleMap.getCockpitY() * TILE_SIZE - cameraY;
+                if (antennaDrawX > -128
+                        && antennaDrawX < canvasW + 128
+                        && antennaDrawY > -192
+                        && antennaDrawY < canvasH + 128) {
+                    drawAntenna(gc, antennaDrawX, antennaDrawY);
+                }
+                
+                // Draw Teleport at end of Level 2
+                double mapRightEdge = (jungleMap.getWidth() - 12) * TILE_SIZE;
+                double telX = mapRightEdge - cameraX;
+                // Place it at player's ground level or fixed height
+                double telY = jungleMap.getHeight() * TILE_SIZE - (TILE_SIZE * 3) - cameraY;
+                if (isValidImage(teleportSprite)) {
+                    gc.drawImage(teleportSprite, telX, telY - 32, 64, 64);
+                } else {
+                    gc.setFill(Color.CYAN);
+                    gc.fillRect(telX, telY, 64, 64);
+                }
+            }
+            // Draw Hatch on Level 3
+            if (currentLevel == 3) {
+                // Adjust position to make it larger and lower
+                double hatchW = 128;
+                double hatchH = 64;
+                double hatchX = 55 * TILE_SIZE - cameraX - 32; // Center it over the tile
+                double hatchY = 10 * TILE_SIZE - cameraY - hatchH; // Rest exactly on the grass
+                if (isValidImage(hatchSprite)) {
+                    gc.drawImage(hatchSprite, hatchX, hatchY, hatchW, hatchH);
+                } else {
+                    gc.setFill(Color.GRAY);
+                    gc.fillRect(hatchX, hatchY, hatchW, hatchH);
+                }
+            }
+            // Draw Terminal on Level 4
+            if (currentLevel == 4) {
+                double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE - cameraX;
+                double terminalComputerY = 14 * TILE_SIZE - cameraY; // approx ground level
+                if (isValidImage(terminalBgSprite)) {
+                    gc.drawImage(terminalBgSprite, terminalComputerX, terminalComputerY, 64, 64);
+                } else {
+                    gc.setFill(Color.GREEN);
+                    gc.fillRect(terminalComputerX, terminalComputerY, 64, 64);
+                }
             }
         } else {
             // Fallback procedurally generated map drawing logic
@@ -927,6 +1308,11 @@ public class GameController {
 
         // 5.5 Draw Kate NPC
         drawKateNPC(gc, canvasW, canvasH);
+
+        // 5.8 Draw Remote Players
+        for (com.lost.database.game.entity.RemotePlayer rp : remotePlayers) {
+            rp.render(gc, cameraX, cameraY);
+        }
 
         // 6. Draw player
         drawPlayer(gc, canvasW, canvasH);
@@ -1078,6 +1464,31 @@ public class GameController {
         gc.fillOval(destX + 8, destY - 20, 16, 16);
     }
 
+    private void drawAntenna(GraphicsContext gc, double destX, double destY) {
+        if (isValidImage(antennaImage)) {
+            gc.drawImage(
+                    antennaImage,
+                    destX - TILE_SIZE / 2,
+                    destY - TILE_SIZE * 2,
+                    TILE_SIZE * 2,
+                    TILE_SIZE * 3);
+        } else {
+            // Fallback: draw a simple tower
+            gc.setFill(Color.rgb(120, 100, 80));
+            gc.fillRect(destX + 12, destY - 64, 8, 96);
+            gc.fillRect(destX + 4, destY - 48, 24, 4);
+            gc.fillRect(destX + 8, destY - 32, 16, 4);
+            // Red blinking light
+            double blink = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 300.0);
+            gc.setFill(Color.rgb(255, 50, 50, blink));
+            gc.fillOval(destX + 12, destY - 72, 8, 8);
+        }
+        // Glowing marker
+        double glow = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 200.0);
+        gc.setFill(Color.rgb(50, 200, 255, glow * 0.6));
+        gc.fillOval(destX + 8, destY - TILE_SIZE * 2 - 20, 16, 16);
+    }
+
     private void drawPlayer(GraphicsContext gc, double canvasW, double canvasH) {
         double playerScreenX = player.getX() - cameraX;
         double playerScreenY = player.getY() - cameraY;
@@ -1195,6 +1606,22 @@ public class GameController {
             gc.setStroke(Color.rgb(60, 55, 45));
             gc.setLineWidth(1.5);
             gc.strokeRect(sx, slotY, slotSize, slotSize);
+        }
+        // Draw collected items in inventory slots
+        if (player.hasItem("transceiver") && isValidImage(transceiverImage)) {
+            double sx = slotStartX + 2;
+            gc.drawImage(transceiverImage, sx, slotY + 2, slotSize - 4, slotSize - 4);
+        }
+        if (player.hasItem("antenna")) {
+            double sx = slotStartX + (slotSize + 4) + 2; // second slot
+            if (isValidImage(itemAntennaImage)) {
+                gc.drawImage(itemAntennaImage, sx, slotY + 2, slotSize - 4, slotSize - 4);
+            } else {
+                gc.setFill(Color.rgb(100, 200, 255));
+                gc.fillRect(sx + 14, slotY + 4, 8, 32);
+                gc.setFill(Color.RED);
+                gc.fillOval(sx + 14, slotY + 2, 8, 8);
+            }
         }
 
         // --- LEFT ORB (HEALTH — red) ---
@@ -1474,6 +1901,34 @@ public class GameController {
         }
     }
 
+    /** Відправляє score на онлайн сервер після завершення рівня */
+    private void submitScoreOnline() {
+        OnlineService online = OnlineService.getInstance();
+        if (!online.isOnline()) {
+            System.out.println("[Online] Offline mode — score not submitted");
+            return;
+        }
+
+        // Рахуємо score: здоров'я * 10 + розум * 5 + бонус за швидкість
+        int healthScore = (int) (player.getHealth() * 10);
+        int sanityScore = (int) (sanity * 5);
+        int timeBonus = Math.max(0, 1000 - (int) gameElapsedTime);
+        int totalScore = healthScore + sanityScore + timeBonus;
+        int timeSec = (int) gameElapsedTime;
+
+        System.out.println("[Online] Submitting score: " + totalScore
+                + " (HP:" + healthScore + " SAN:" + sanityScore + " TIME:" + timeBonus + ")");
+
+        new Thread(() -> {
+            boolean success = online.syncScore(totalScore, maxLevelReached, timeSec);
+            if (success) {
+                System.out.println("[Online] ✓ Score submitted successfully!");
+            } else {
+                System.out.println("[Online] ✗ Failed to submit score");
+            }
+        }).start();
+    }
+
     private void restartGame() {
         gameOver = false;
         gameOverTimer = 0;
@@ -1492,11 +1947,48 @@ public class GameController {
             System.out.println("→ Loading level " + currentLevel + "...");
             loadLevel(currentLevel);
         } else {
-            // Restart from level 1
-            currentLevel = 1;
-            System.out.println("→ Restarting from level 1...");
-            loadLevel(currentLevel);
+            System.out.println("🏆 Game completed! Showing victory screen...");
+            gameWon = true;
+            showVictoryScreen();
         }
+    }
+
+    private void showVictoryScreen() {
+        if (gameLoop != null) gameLoop.stop();
+        GraphicsContext gc = gameCanvas.getGraphicsContext2D();
+        double w = gameCanvas.getWidth();
+        double h = gameCanvas.getHeight();
+        gc.setFill(Color.BLACK);
+        gc.fillRect(0, 0, w, h);
+        gc.setTextAlign(TextAlignment.CENTER);
+        gc.setFill(Color.rgb(0, 255, 100, 0.8));
+        gc.setFont(Font.font("Monospace", FontWeight.NORMAL, 16));
+        gc.fillText("📡 Сигнал відправлено...", w / 2, h / 2 - 120);
+        gc.setFill(Color.rgb(200, 200, 200));
+        gc.setFont(Font.font("System", FontWeight.NORMAL, 18));
+        gc.fillText("Через 3 дні на горизонті з'явився гвинтокрил...", w / 2, h / 2 - 70);
+        gc.setFill(Color.rgb(255, 220, 80));
+        gc.setFont(Font.font("System", FontWeight.BOLD, 24));
+        gc.fillText("🏝 Ви вижили.", w / 2, h / 2 - 20);
+        gc.setFill(Color.WHITE);
+        gc.setFont(Font.font("Impact", FontWeight.BOLD, 72));
+        gc.fillText("LOST", w / 2, h / 2 + 60);
+        gc.setFill(Color.rgb(150, 150, 150));
+        gc.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        gc.fillText("Курсова робота — 2026", w / 2, h / 2 + 110);
+        gc.fillText("Натисни ENTER щоб повернутися в меню", w / 2, h / 2 + 150);
+        gameCanvas.setOnKeyPressed(
+                e -> {
+                    if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE) {
+                        try {
+                            Parent root =
+                                    FXMLLoader.load(getClass().getResource("/fxml/login.fxml"));
+                            gameCanvas.getScene().setRoot(root);
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                });
     }
 
     private void loadLevel(int levelNum) {
@@ -1506,6 +1998,12 @@ public class GameController {
         // If TMX failed (no solid tiles), keep current map
         if (newMap.getWidth() > 0) {
             jungleMap = newMap;
+        }
+
+        if (levelNum == 1) {
+            jungleMap.setCockpitPosition(40); // Cockpit on level 1
+        } else if (levelNum == 2) {
+            jungleMap.setCockpitPosition(43, 9); // Radio tower on level 2 exactly on ground
         }
 
         double spawnX = jungleMap.getSpawnX() * TILE_SIZE;
@@ -1532,12 +2030,16 @@ public class GameController {
         initEnemiesFromMap();
         initItemsFromMap();
 
-        // Spawn Kate for Level 1
+        // Spawn NPC for current level
         kateExists = false;
         kateTalkedTo = false;
-        if (levelNum == 1) {
-            spawnKateNPC();
-        }
+        spawnNpcForLevel(levelNum);
+        
+        // Terminal level initialization
+        isTerminalActive = false;
+        terminalInput.setLength(0);
+        terminalError = false;
+        
         System.out.println("Loaded level " + levelNum + " spawn=(" + spawnX + "," + spawnY + ")");
     }
 
@@ -1572,10 +2074,84 @@ public class GameController {
 
         for (int tx = minTx; tx <= maxTx; tx++) {
             for (int ty = minTy; ty <= maxTy; ty++) {
-                if (jungleMap.isSolid(tx, ty)) return true;
+                if (jungleMap.isSlope(tx, ty)) {
+                    // For slopes, check if the player's feet are below the slope surface
+                    double playerCenterX = px + PLAYER_W / 2.0;
+                    double slopeHeight = jungleMap.getSlopeHeight(tx, ty, playerCenterX, TILE_SIZE);
+                    double slopeTop = (ty + 1) * TILE_SIZE - slopeHeight;
+                    if (bottom > slopeTop) {
+                        return true;
+                    }
+                } else if (jungleMap.isSolid(tx, ty)) {
+                    return true;
+                }
             }
         }
         return false;
+    }
+
+    /** Same as collidesAt but ignores slope tiles — used for horizontal movement */
+    private boolean collidesAtIgnoreSlopes(double px, double py, double vx) {
+        double left = px;
+        double right = px + PLAYER_W;
+        double top = py;
+        // Subtract a small step margin so we don't hit tiny bumps
+        double bottom = py + PLAYER_H - 12.0;
+
+        int minTx = (int) Math.floor(left / TILE_SIZE);
+        int maxTx = (int) Math.floor((right - 0.01) / TILE_SIZE);
+        int minTy = (int) Math.floor(top / TILE_SIZE);
+        int maxTy = (int) Math.floor((bottom - 0.01) / TILE_SIZE);
+
+        // Only check the leading edge based on velocity
+        int checkTxStart = minTx;
+        int checkTxEnd = maxTx;
+        if (vx > 0) {
+            checkTxStart = maxTx; // Only check right edge
+        } else if (vx < 0) {
+            checkTxEnd = minTx; // Only check left edge
+        }
+
+        for (int tx = checkTxStart; tx <= checkTxEnd; tx++) {
+            for (int ty = minTy; ty <= maxTy; ty++) {
+                if (jungleMap.isSlope(tx, ty)) {
+                    continue; // Skip slopes for horizontal checks
+                } else if (jungleMap.isSolid(tx, ty)) {
+                    // If this solid tile is at the foot level (bottom row)
+                    // and has a slope adjacent in the direction we came from,
+                    // skip it — the player is walking from slope onto flat ground
+                    if (ty == maxTy) {
+                        int adjacentX = (vx > 0) ? tx - 1 : tx + 1;
+                        if (jungleMap.isSlope(adjacentX, ty)) {
+                            continue; // Allow transition from slope to ground
+                        }
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Snap the player's Y position to the slope surface if standing on a slope */
+    private double snapToSlopeY(double px, double py) {
+        double playerCenterX = px + PLAYER_W / 2.0;
+        int footTileX = (int) (playerCenterX / TILE_SIZE);
+
+        // Check the tile at player's feet level and one below
+        for (int checkY = (int) ((py + PLAYER_H - 2) / TILE_SIZE);
+                checkY <= (int) ((py + PLAYER_H + 4) / TILE_SIZE);
+                checkY++) {
+            if (jungleMap.isSlope(footTileX, checkY)) {
+                double slopeHeight =
+                        jungleMap.getSlopeHeight(footTileX, checkY, playerCenterX, TILE_SIZE);
+                double slopeTop = (checkY + 1) * TILE_SIZE - slopeHeight;
+                double snappedY = slopeTop - PLAYER_H - 0.1;
+                // Allow snapping both up and down (for going up and down slopes)
+                return snappedY;
+            }
+        }
+        return py;
     }
 
     private boolean isTouchingHazard() {
@@ -1611,30 +2187,89 @@ public class GameController {
 
     // --- INTERACTION ---
     private void checkProximity() {
-        // Check proximity to cockpit / level exit
-        int cx = jungleMap.getCockpitX();
-        int cy = jungleMap.getCockpitY();
-        double tileX = cx * TILE_SIZE;
-        double tileY = cy * TILE_SIZE;
+        // Check proximity to mission objects per level
+        boolean nearCockpit = false;
+        if (currentLevel == 1 && !player.hasItem("transceiver")) {
+            int cx = jungleMap.getCockpitX();
+            int cy = jungleMap.getCockpitY();
+            double tileX = cx * TILE_SIZE;
+            double tileY = cy * TILE_SIZE;
 
-        boolean nearCockpit =
-                rectsOverlap(
-                        player.getX() - 32,
-                        player.getY() - 32,
-                        PLAYER_W + 64,
-                        PLAYER_H + 64,
-                        tileX,
-                        tileY,
-                        TILE_SIZE,
-                        TILE_SIZE);
+            nearCockpit =
+                    rectsOverlap(
+                            player.getX() - 32,
+                            player.getY() - 32,
+                            PLAYER_W + 64,
+                            PLAYER_H + 64,
+                            tileX,
+                            tileY,
+                            TILE_SIZE,
+                            TILE_SIZE);
+        }
+
+        // Check proximity to antenna on level 2
+        boolean nearAntenna = false;
+        if (currentLevel == 2 && !player.hasItem("antenna")) {
+            int cx = jungleMap.getCockpitX();
+            int cy = jungleMap.getCockpitY();
+            double tileX = cx * TILE_SIZE;
+            double tileY = cy * TILE_SIZE;
+
+            nearAntenna =
+                    rectsOverlap(
+                            player.getX() - 48,
+                            player.getY() - 64,
+                            PLAYER_W + 96,
+                            PLAYER_H + 128,
+                            tileX,
+                            tileY,
+                            TILE_SIZE,
+                            TILE_SIZE);
+        }
 
         // Check proximity to Kate NPC
         boolean nearKate = kateExists && !kateTalkedTo && isNearKate();
 
-        if ((nearCockpit && !missionComplete) || nearKate) {
+        // Check proximity to Teleport (Level 2 end)
+        canInteractTeleport = false;
+        if (currentLevel == 2) {
+            double mapRightEdge = (jungleMap.getWidth() - 12) * TILE_SIZE;
+            if (player.getX() >= mapRightEdge - TILE_SIZE * 3) {
+                canInteractTeleport = true;
+            }
+        }
+
+        // Check proximity to Hatch (Level 3 center)
+        canInteractHatch = false;
+        if (currentLevel == 3) {
+            double hatchX = 55 * TILE_SIZE;
+            double hatchY = 9 * TILE_SIZE;
+            if (Math.abs(player.getX() - hatchX) < 100 && Math.abs(player.getY() - hatchY) < 150) {
+                canInteractHatch = true;
+            }
+        }
+        
+        // Check proximity to Terminal Computer (Level 4 center)
+        boolean canInteractTerminalComputer = false;
+        if (currentLevel == 4 && !isTerminalActive) {
+            double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE;
+            if (Math.abs(player.getX() - terminalComputerX) < 100) {
+                canInteractTerminalComputer = true;
+            }
+        }
+
+        if ((nearCockpit && !missionComplete) || nearAntenna || nearKate || canInteractTeleport || canInteractHatch || canInteractTerminalComputer) {
             if (interactLabel != null) {
-                interactLabel.setText(
-                        nearKate ? "Натисни [E] щоб поговорити" : "Натисни [E] для взаємодії");
+                if (canInteractTeleport) {
+                    interactLabel.setText("Натисни [E] щоб телепортуватись");
+                } else if (canInteractHatch) {
+                    interactLabel.setText("Натисни [E] щоб відкрити люк");
+                } else if (canInteractTerminalComputer) {
+                    interactLabel.setText("Натисни [E] щоб ввести код");
+                } else {
+                    interactLabel.setText(
+                            nearKate ? "Натисни [E] щоб поговорити" : "Натисни [E] для взаємодії");
+                }
                 interactLabel.setVisible(true);
             }
         } else if (interactLabel != null) {
@@ -1650,53 +2285,137 @@ public class GameController {
     }
 
     private void tryInteract() {
-        // Try talking to Kate first
+        // Try talking to NPC
         if (kateExists && !kateTalkedTo && isNearKate()) {
             kateTalkedTo = true;
-            startLevel1Cutscene();
+            startLevelCutscene();
             return;
         }
 
-        if (missionComplete) return;
+        // Level 1: cockpit interaction gives transceiver
+        if (currentLevel == 1 && !player.hasItem("transceiver")) {
+            int cx = jungleMap.getCockpitX();
+            int cy = jungleMap.getCockpitY();
+            double tileX = cx * TILE_SIZE;
+            double tileY = cy * TILE_SIZE;
 
-        int cx = jungleMap.getCockpitX();
-        int cy = jungleMap.getCockpitY();
-        double tileX = cx * TILE_SIZE;
-        double tileY = cy * TILE_SIZE;
+            if (rectsOverlap(
+                    player.getX(),
+                    player.getY(),
+                    PLAYER_W,
+                    PLAYER_H,
+                    tileX - 32,
+                    tileY - 32,
+                    TILE_SIZE + 64,
+                    TILE_SIZE + 64)) {
+                player.addItem("transceiver");
+                showMission("📡 Трансивер знайдено! Тепер біжи до кінця!");
+                System.out.println("✓ Transceiver collected!");
+            }
+        }
 
-        if (rectsOverlap(
-                player.getX(),
-                player.getY(),
-                PLAYER_W,
-                PLAYER_H,
-                tileX - 32,
-                tileY - 32,
-                TILE_SIZE + 64,
-                TILE_SIZE + 64)) {
-            player.addItem("transceiver");
-            missionComplete = true;
+        // Level 2: radio tower interaction gives antenna
+        if (currentLevel == 2 && !player.hasItem("antenna")) {
+            int cx = jungleMap.getCockpitX();
+            int cy = jungleMap.getCockpitY();
+            double tileX = cx * TILE_SIZE;
+            double tileY = cy * TILE_SIZE;
 
-            // Trigger level complete
-            levelComplete = true;
-            levelCompleteTimer = 0;
-            System.out.println("✓ Level " + currentLevel + " completed!");
-            showMission(
-                    currentLevel < MAX_LEVELS
-                            ? "📡 Трансивер знайдено! Натисни ENTER → наступний рівень"
-                            : "🏝 Ти вижив! Гра пройдена!");
+            if (rectsOverlap(
+                    player.getX(),
+                    player.getY(),
+                    PLAYER_W,
+                    PLAYER_H,
+                    tileX - 48,
+                    tileY - 64,
+                    TILE_SIZE + 96,
+                    TILE_SIZE + 128)) {
+                player.addItem("antenna");
+                showMission("📻 Антену знайдено! Тепер Саїд зможе підсилити сигнал!");
+                System.out.println("✓ Antenna collected!");
+            }
+        }
+
+        if (canInteractTeleport) {
+            System.out.println("Teleporting to Level 3!");
+            loadNextLevel();
+            return;
+        }
+
+        if (canInteractHatch) {
+            System.out.println("Entering the Bunker (Level 4)!");
+            loadNextLevel();
+            return;
+        }
+
+        if (currentLevel == 4 && !isTerminalActive) {
+            double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE;
+            if (Math.abs(player.getX() - terminalComputerX) < 100) {
+                isTerminalActive = true;
+                terminalInput.setLength(0);
+                return;
+            }
         }
     }
 
-    // --- KATE NPC ---
-    private void spawnKateNPC() {
-        // Place Kate 3 tiles to the right of player spawn
-        double spawnX = jungleMap.getSpawnX() * TILE_SIZE + 3 * TILE_SIZE;
-        double spawnY = jungleMap.getSpawnY() * TILE_SIZE - KATE_H + 82;
+    // --- NPC SYSTEM ---
+    private void spawnNpcForLevel(int level) {
+        int tilesRight = (level == 1) ? 3 : 5;
+        int npcTileX = jungleMap.getSpawnX() + tilesRight;
+        // Find main ground surface: scan from bottom, skip solid mass, stop at first
+        // air gap
+        int groundSurface = jungleMap.getHeight() - 2;
+        boolean foundSolid = false;
+        for (int sy = jungleMap.getHeight() - 1; sy >= 0; sy--) {
+            if (jungleMap.isSolid(npcTileX, sy)) {
+                foundSolid = true;
+            } else if (foundSolid) {
+                groundSurface = sy + 1; // top of ground mass
+                break;
+            }
+        }
+        double spawnX = npcTileX * TILE_SIZE;
+        // NPC feet on top of ground surface
+        // Per-level Y offset (Kate=18 was perfect, Sayid/Ben need less)
+        int yOffset = (level == 1) ? 18 : 8;
+        double spawnY = groundSurface * TILE_SIZE - KATE_H + yOffset;
         kateX = spawnX;
         kateY = spawnY;
         kateExists = true;
         kateTalkedTo = false;
-        System.out.println("✓ Kate NPC spawned at (" + kateX + ", " + kateY + ")");
+        switch (level) {
+            case 1:
+                npcName = "Кейт";
+                npcCurrentSprite = kateIdleSprite;
+                npcHairColor = Color.rgb(101, 67, 33);
+                npcSkinColor = Color.rgb(222, 184, 150);
+                npcShirtColor = Color.rgb(160, 160, 155);
+                npcPantsColor = Color.rgb(95, 110, 70);
+                npcEyeColor = Color.rgb(60, 100, 60);
+                break;
+            case 2:
+                npcName = "Саїд";
+                npcCurrentSprite = sayidIdleSprite;
+                npcHairColor = Color.rgb(30, 25, 20);
+                npcSkinColor = Color.rgb(180, 140, 100);
+                npcShirtColor = Color.rgb(85, 100, 60);
+                npcPantsColor = Color.rgb(70, 70, 65);
+                npcEyeColor = Color.rgb(50, 40, 30);
+                break;
+            case 3:
+                npcName = "Бен";
+                npcCurrentSprite = benIdleSprite;
+                npcHairColor = Color.rgb(80, 65, 50);
+                npcSkinColor = Color.rgb(230, 200, 175);
+                npcShirtColor = Color.rgb(190, 175, 140);
+                npcPantsColor = Color.rgb(160, 150, 120);
+                npcEyeColor = Color.rgb(80, 120, 180);
+                break;
+            case 4:
+                kateExists = false;
+                return;
+        }
+        System.out.println("✓ NPC " + npcName + " spawned at (" + kateX + ", " + kateY + ")");
     }
 
     private void drawKateNPC(GraphicsContext gc, double canvasW, double canvasH) {
@@ -1715,24 +2434,24 @@ public class GameController {
         double y = ky + breathe;
 
         // Try to use sprite first, fallback to programmatic drawing
-        if (isValidImage(kateIdleSprite)) {
-            gc.drawImage(kateIdleSprite, x, y, KATE_W, KATE_H);
+        if (isValidImage(npcCurrentSprite)) {
+            gc.drawImage(npcCurrentSprite, x, y, KATE_W, KATE_H);
         } else {
             // --- Programmatic fallback: Draw Kate as a character ---
 
-            // Hair (brown, messy ponytail)
-            gc.setFill(Color.rgb(101, 67, 33));
+            // Hair
+            gc.setFill(npcHairColor);
             gc.fillOval(x + 10, y - 2, 28, 28); // Main hair
             gc.fillRoundRect(x + 28, y + 4, 14, 18, 6, 6); // Ponytail
             gc.setFill(Color.rgb(80, 50, 25));
             gc.fillOval(x + 30, y + 2, 10, 10); // Ponytail knot
 
             // Head (skin tone)
-            gc.setFill(Color.rgb(222, 184, 150));
+            gc.setFill(npcSkinColor);
             gc.fillOval(x + 13, y + 4, 22, 22); // Face
 
             // Eyes
-            gc.setFill(Color.rgb(60, 100, 60)); // Green eyes
+            gc.setFill(npcEyeColor);
             gc.fillOval(x + 18, y + 12, 5, 5);
             gc.fillOval(x + 26, y + 12, 5, 5);
             gc.setFill(Color.BLACK);
@@ -1754,8 +2473,8 @@ public class GameController {
             gc.setFill(Color.rgb(210, 170, 140));
             gc.fillRect(x + 20, y + 24, 8, 6);
 
-            // Tank top (dirty grey)
-            gc.setFill(Color.rgb(160, 160, 155));
+            // Shirt
+            gc.setFill(npcShirtColor);
             gc.fillRoundRect(x + 12, y + 28, 24, 22, 4, 4);
             // Dirt stains on top
             gc.setFill(Color.rgb(130, 125, 110));
@@ -1775,8 +2494,8 @@ public class GameController {
             gc.fillOval(x + 8, y + 38, 4, 3);
             gc.fillOval(x + 36, y + 42, 3, 3);
 
-            // Cargo pants (olive green)
-            gc.setFill(Color.rgb(95, 110, 70));
+            // Pants
+            gc.setFill(npcPantsColor);
             gc.fillRoundRect(x + 12, y + 48, 11, 20, 3, 3); // Left leg
             gc.fillRoundRect(x + 25, y + 48, 11, 20, 3, 3); // Right leg
             // Belt
@@ -1805,11 +2524,11 @@ public class GameController {
             gc.strokeRoundRect(x + 25, y + 48, 11, 20, 3, 3);
         } // end else (programmatic fallback)
 
-        // --- Name label above Kate ---
+        // --- Name label above NPC ---
         gc.setTextAlign(TextAlignment.CENTER);
         gc.setFont(Font.font("System", FontWeight.BOLD, 12));
         gc.setFill(Color.rgb(255, 220, 80));
-        gc.fillText("Кейт", x + KATE_W / 2, y - 12);
+        gc.fillText(npcName, x + KATE_W / 2, y - 12);
 
         // Draw interact prompt if near and not talked to
         if (!kateTalkedTo && isNearKate()) {
@@ -1912,24 +2631,74 @@ public class GameController {
     @FXML
     private void saveGame() {
         System.out.println("Game saved!");
-        // Save session to DB
+        // Зберігаємо в таблицю game_saves
         try {
-            GameSessionDao dao = new GameSessionDao(LostDatabaseApp.getConnectionPool());
-            GameSession session = new GameSession();
-            session.setSessionCode("SAVE-" + System.currentTimeMillis() % 100000);
-            session.setHostPlayerId(dbPlayer != null ? dbPlayer.getId() : 1L);
-            session.setMaxPlayers(1);
-            session.setStatus("SAVED | LVL1");
-            dao.save(session);
+            GameSaveDao saveDao = new GameSaveDao(LostDatabaseApp.getConnectionPool());
+            GameSave save = new GameSave();
+            save.setPlayerId(dbPlayer != null ? dbPlayer.getId() : 1L);
+            save.setCurrentLevel(currentLevel);
+            save.setHealth(player.getHealth());
+            save.setMaxHealth(player.getMaxHealth());
+            save.setSanity(sanity);
+            save.setPositionX(player.getX());
+            save.setPositionY(player.getY());
+            save.setSaveName("Level " + currentLevel + " - " + java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm")));
+            saveDao.save(save);
+            System.out.println("[Save] ✓ Saved to game_saves: id=" + save.getId());
         } catch (Exception e) {
             System.err.println("Save error: " + e.getMessage());
+            e.printStackTrace();
         }
-        showMission("💾 Гру збережено!");
+
+        // Зберігаємо онлайн якщо залогінені
+        OnlineService online = OnlineService.getInstance();
+        if (online.isOnline()) {
+            new Thread(() -> {
+                String saveName = "Level " + currentLevel + " - " + java.time.LocalDateTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM HH:mm"));
+                boolean ok = online.saveGameOnline(
+                        currentLevel,
+                        player.getHealth(),
+                        player.getMaxHealth(),
+                        (int) sanity,
+                        player.getX(),
+                        player.getY(),
+                        saveName);
+                System.out.println(ok ? "[Online] ✓ Game saved online!" : "[Online] ✗ Online save failed");
+            }).start();
+            showMission("💾 Гру збережено (онлайн + локально)!");
+        } else {
+            showMission("💾 Гру збережено!");
+        }
         togglePauseMenu();
     }
 
     public void setDbPlayer(Player player) {
         this.dbPlayer = player;
+    }
+
+    /** Завантажити стан гри з збереження */
+    public void loadFromSave(GameSave save) {
+        if (save == null) return;
+        this.pendingSave = save;
+    }
+
+    private GameSave pendingSave;
+
+    /** Викликається після initialize() — застосовує збережений стан */
+    public void applyPendingSave() {
+        if (pendingSave == null) return;
+        currentLevel = pendingSave.getCurrentLevel();
+        loadLevel(currentLevel);
+        player.setX(pendingSave.getPositionX());
+        player.setY(pendingSave.getPositionY());
+        player.setHealth(pendingSave.getHealth());
+        sanity = pendingSave.getSanity();
+        System.out.println("[Save] ✓ Loaded save: Level " + currentLevel
+                + " HP:" + pendingSave.getHealth()
+                + " Pos:(" + (int) pendingSave.getPositionX() + "," + (int) pendingSave.getPositionY() + ")");
+        pendingSave = null;
     }
 
     @FXML

@@ -16,6 +16,10 @@ public enum TileType {
     FLOATING_PLATFORM, // suspended platforms (solid)
     SPIKES, // hazardous - causes respawn/damage
     DECORATION, // purely visual, no collision
+    SLOPE_LEFT, // slope rising to the right (e.g. tile 121)
+    SLOPE_LEFT_2, // slope rising to the right (steep)
+    SLOPE_RIGHT, // slope falling to the right (first half)
+    SLOPE_RIGHT_2, // slope falling to the right (second half)
 
     // Items & Enemies
     HEALTH_PACK, // restores HP when picked up
