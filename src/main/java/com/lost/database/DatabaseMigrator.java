@@ -17,6 +17,18 @@ public class DatabaseMigrator {
     public static void main(String[] args) throws SQLException {
         System.out.println("=== Lost Game Database ===\n");
 
+        // 0. Запуск H2 Web Console
+        org.h2.tools.Server h2WebServer = null;
+        try {
+            h2WebServer = org.h2.tools.Server.createWebServer("-web", "-webAllowOthers", "-webPort", "8082").start();
+            System.out.println("🚀 [DATABASE] H2 Web Console успішно запущено! Відкрийте у браузері: http://localhost:8082");
+            System.out.println("   - JDBC URL: jdbc:h2:file:~/.lost-database/data/lostdb;AUTO_SERVER=TRUE");
+            System.out.println("   - Користувач: sa");
+            System.out.println("   - Пароль: (порожній)\n");
+        } catch (Exception e) {
+            System.err.println("⚠️ Не вдалося запустити H2 Web Console: " + e.getMessage());
+        }
+
         // 1. Flyway міграції
         Flyway flyway =
                 Flyway.configure()
@@ -108,5 +120,18 @@ public class DatabaseMigrator {
         // 5. Закриття пулу
         pool.shutdown();
         System.out.println("\n=== Done ===");
+
+        // Keep H2 Web Console alive
+        if (h2WebServer != null) {
+            System.out.println("\nℹ️ H2 Web Console продовжує працювати на http://localhost:8082");
+            System.out.println("Натисніть клавішу ENTER тут, щоб завершити роботу та зупинити сервер...");
+            try {
+                System.in.read();
+            } catch (Exception e) {
+                // Ignore
+            }
+            h2WebServer.stop();
+            System.out.println("🛑 H2 Web Console зупинено.");
+        }
     }
 }

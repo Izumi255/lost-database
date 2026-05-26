@@ -22,6 +22,14 @@ public class OnlineService {
         return instance;
     }
 
+    public void setServerAddress(String hostOrIp) {
+        apiClient.setServerAddress(hostOrIp);
+    }
+
+    public String getServerAddress() {
+        return apiClient.getServerAddress();
+    }
+
     public boolean isOnline() {
         return apiClient.getToken() != null && !apiClient.getToken().isEmpty();
     }

@@ -14,17 +14,52 @@ import java.util.Map;
 public class MultiplayerService {
     private static MultiplayerService instance;
     private final HttpClient client;
-    private static final String BASE_URL = "http://localhost:8080/api/sessions";
+    private String baseUrl;
 
     private Long currentSessionId;
     private String currentSessionCode;
     private boolean isHost;
+    private volatile List<Map<String, String>> cachedState = new ArrayList<>();
 
     private MultiplayerService() {
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .version(HttpClient.Version.HTTP_1_1)
                 .build();
+        
+        // Load saved server IP, default to 26.4.16.99
+        java.util.prefs.Preferences prefs = java.util.prefs.Preferences.userNodeForPackage(MultiplayerService.class);
+        String savedIp = prefs.get("server_ip", "26.4.16.99");
+        setServerAddress(savedIp);
+    }
+
+    public void setServerAddress(String hostOrIp) {
+        if (hostOrIp == null || hostOrIp.trim().isEmpty()) {
+            hostOrIp = "26.4.16.99";
+        }
+        
+        String ipStr = hostOrIp.trim();
+        String clean = ipStr;
+        if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+            if (!clean.contains(":")) {
+                clean = clean + ":8080";
+            }
+            clean = "http://" + clean;
+        }
+        if (!clean.endsWith("/api/sessions")) {
+            if (clean.endsWith("/api")) {
+                clean = clean + "/sessions";
+            } else if (clean.endsWith("/api/")) {
+                clean = clean + "sessions";
+            } else {
+                if (clean.endsWith("/")) {
+                    clean = clean + "api/sessions";
+                } else {
+                    clean = clean + "/api/sessions";
+                }
+            }
+        }
+        this.baseUrl = clean;
     }
 
     public static synchronized MultiplayerService getInstance() {
@@ -38,6 +73,7 @@ public class MultiplayerService {
         currentSessionId = null;
         currentSessionCode = null;
         isHost = false;
+        cachedState = new ArrayList<>();
     }
 
     public Long getCurrentSessionId() { return currentSessionId; }
@@ -45,7 +81,7 @@ public class MultiplayerService {
     public boolean isHost() { return isHost; }
 
     private HttpRequest.Builder createRequestBuilder(String endpoint) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(BASE_URL + endpoint));
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(baseUrl + endpoint));
         String token = OnlineService.getInstance().isOnline() ? OnlineService.getInstance().getToken() : null;
         if (token != null && !token.isEmpty()) {
             builder.header("Authorization", "Bearer " + token);
@@ -103,7 +139,7 @@ public class MultiplayerService {
     public void syncPosition(double x, double y, int health, int direction, String animationState) {
         if (currentSessionId == null) return;
         try {
-            String json = String.format("{\"x\":%f,\"y\":%f,\"health\":%d,\"direction\":%d,\"animationState\":\"%s\"}",
+            String json = String.format(java.util.Locale.US, "{\"x\":%f,\"y\":%f,\"health\":%d,\"direction\":%d,\"animationState\":\"%s\"}",
                     x, y, health, direction, animationState);
             HttpRequest request = createRequestBuilder("/" + currentSessionId + "/sync")
                     .header("Content-Type", "application/json")
@@ -115,19 +151,24 @@ public class MultiplayerService {
         }
     }
 
-    public List<Map<String, String>> getSessionState() {
-        if (currentSessionId == null) return new ArrayList<>();
+    public void fetchSessionStateAsync() {
+        if (currentSessionId == null) return;
         try {
             HttpRequest request = createRequestBuilder("/" + currentSessionId + "/state")
                     .GET()
                     .build();
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                return ApiClient.parseSimpleJsonList(response.body());
-            }
+            client.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                  .thenAccept(response -> {
+                      if (response.statusCode() == 200) {
+                          cachedState = ApiClient.parseSimpleJsonList(response.body());
+                      }
+                  });
         } catch (Exception e) {
             // Ignore
         }
-        return new ArrayList<>();
+    }
+
+    public List<Map<String, String>> getLastCachedState() {
+        return cachedState != null ? cachedState : new ArrayList<>();
     }
 }

@@ -20,6 +20,8 @@ public enum TileType {
     SLOPE_LEFT_2, // slope rising to the right (steep)
     SLOPE_RIGHT, // slope falling to the right (first half)
     SLOPE_RIGHT_2, // slope falling to the right (second half)
+    SLOPE_RIGHT_GENTLE, // gentle slope down (first half)
+    SLOPE_RIGHT_GENTLE_2, // gentle slope down (second half)
 
     // Items & Enemies
     HEALTH_PACK, // restores HP when picked up

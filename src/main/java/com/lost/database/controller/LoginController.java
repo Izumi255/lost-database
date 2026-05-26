@@ -17,22 +17,30 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.VBox;
 
+import javafx.scene.control.Hyperlink;
+
 /** Контролер JavaFX для сторінки входу та реєстрації. */
 public class LoginController {
 
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
+    @FXML private TextField serverIpField;
     @FXML private Label statusLabel;
     @FXML private Button loginBtn;
     @FXML private CheckBox onlineLoginCheck;
     @FXML private VBox authBox;
+    @FXML private VBox ipSettingsBox;
+    @FXML private Hyperlink toggleIpBtn;
 
     // Реєстрація
     @FXML private TextField regUsernameField;
     @FXML private PasswordField regPasswordField;
     @FXML private TextField regEmailField;
+    @FXML private TextField regServerIpField;
     @FXML private Label regStatusLabel;
     @FXML private VBox regBox;
+    @FXML private VBox regIpSettingsBox;
+    @FXML private Hyperlink regToggleIpBtn;
 
     // Верифікація (inline)
     @FXML private TextField verificationCodeField;
@@ -55,6 +63,28 @@ public class LoginController {
         playerDao = new PlayerDao(LostDatabaseApp.getConnectionPool());
         settings = new SettingsManager();
 
+        // Load saved server IP and synchronize
+        String savedIp = OnlineService.getInstance().getServerAddress();
+        if (serverIpField != null) {
+            serverIpField.setText(savedIp);
+        }
+        if (regServerIpField != null) {
+            regServerIpField.setText(savedIp);
+        }
+
+        if (serverIpField != null && regServerIpField != null) {
+            serverIpField.textProperty().addListener((obs, oldVal, newVal) -> {
+                if (!regServerIpField.getText().equals(newVal)) {
+                    regServerIpField.setText(newVal);
+                }
+            });
+            regServerIpField.textProperty().addListener((obs, oldVal, newVal) -> {
+                if (!serverIpField.getText().equals(newVal)) {
+                    serverIpField.setText(newVal);
+                }
+            });
+        }
+
         // Auto-login if saved (Тимчасово вимкнено для тестування онлайн логіну)
         if (settings.hasAutoLogin()) {
             String user = settings.getSavedUsername();
@@ -70,11 +100,16 @@ public class LoginController {
         String user = usernameField.getText().trim();
         String pass = passwordField.getText();
         boolean isOnline = onlineLoginCheck != null && onlineLoginCheck.isSelected();
+        String ip = serverIpField != null ? serverIpField.getText().trim() : "26.4.16.99";
 
         if (user.isEmpty() || pass.isEmpty()) {
             showStatus(statusLabel, "Введіть логін та пароль!", "#ff3333");
             return;
         }
+
+        // Set custom server address
+        OnlineService.getInstance().setServerAddress(ip);
+        com.lost.database.infrastructure.MultiplayerService.getInstance().setServerAddress(ip);
 
         showStatus(statusLabel, isOnline ? "З'єднання з сервером..." : "Перевірка...", "yellow");
 
@@ -159,6 +194,7 @@ public class LoginController {
         String user = regUsernameField.getText().trim();
         String pass = regPasswordField.getText();
         String mail = regEmailField.getText().trim();
+        String ip = regServerIpField != null ? regServerIpField.getText().trim() : "26.4.16.99";
 
         if (user.isEmpty() || pass.isEmpty()) {
             showStatus(regStatusLabel, "Логін і пароль обов'язкові!", "#ff3333");
@@ -169,6 +205,10 @@ public class LoginController {
             showStatus(regStatusLabel, "Пароль має бути щонайменше 4 символи!", "#ff3333");
             return;
         }
+
+        // Set custom server address
+        OnlineService.getInstance().setServerAddress(ip);
+        com.lost.database.infrastructure.MultiplayerService.getInstance().setServerAddress(ip);
 
         // Якщо email вказано → верифікація через пошту
         if (!mail.isEmpty()) {
@@ -226,14 +266,30 @@ public class LoginController {
             showStatus(regStatusLabel, "Реєстрація...", "yellow");
             new Thread(
                             () -> {
+                                // Спочатку реєструємо онлайн (якщо сервер працює)
+                                boolean onlineSuccess = false;
+                                try {
+                                    onlineSuccess = OnlineService.getInstance().registerOnline(user, pass, "").isPresent();
+                                } catch (Exception e) {
+                                    // Ігноруємо, якщо сервер недоступний
+                                }
+                                
+                                final boolean finalOnlineSuccess = onlineSuccess;
                                 Optional<Player> result = authService.register(user, pass, null);
                                 Platform.runLater(
                                         () -> {
                                             if (result.isPresent()) {
-                                                showStatus(
-                                                        regStatusLabel,
-                                                        "✅ Акаунт створено! Тепер увійдіть.",
-                                                        "#00ff00");
+                                                if (finalOnlineSuccess) {
+                                                    showStatus(
+                                                            regStatusLabel,
+                                                            "✅ Акаунт створено онлайн та локально! Тепер увійдіть.",
+                                                            "#00ff00");
+                                                } else {
+                                                    showStatus(
+                                                            regStatusLabel,
+                                                            "⚠️ Створено тільки ЛОКАЛЬНО (сервер офлайн або невірний IP)!",
+                                                            "orange");
+                                                }
                                                 onCancelRegister();
                                                 usernameField.setText(user);
                                                 passwordField.setText("");
@@ -269,7 +325,19 @@ public class LoginController {
                         code);
 
         if (result.isPresent()) {
-            showStatus(regStatusLabel, "✅ Email підтверджено! Акаунт створено!", "#00ff00");
+            // Спочатку реєструємо онлайн (якщо сервер працює)
+            boolean onlineSuccess = false;
+            try {
+                onlineSuccess = OnlineService.getInstance().registerOnline(pendingUsername, pendingPassword, pendingEmail).isPresent();
+            } catch (Exception e) {
+                // Ігноруємо, якщо сервер недоступний
+            }
+
+            if (onlineSuccess) {
+                showStatus(regStatusLabel, "✅ Email підтверджено! Акаунт створено онлайн та локально!", "#00ff00");
+            } else {
+                showStatus(regStatusLabel, "⚠️ Створено тільки ЛОКАЛЬНО (сервер офлайн або невірний IP)!", "orange");
+            }
             onCancelRegister();
             usernameField.setText(pendingUsername);
             passwordField.setText("");
@@ -328,5 +396,25 @@ public class LoginController {
     private void showStatus(Label label, String text, String color) {
         label.setText(text);
         label.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 12px;");
+    }
+
+    @FXML
+    public void onToggleIpSettings() {
+        if (ipSettingsBox != null && toggleIpBtn != null) {
+            boolean isVisible = ipSettingsBox.isVisible();
+            ipSettingsBox.setVisible(!isVisible);
+            ipSettingsBox.setManaged(!isVisible);
+            toggleIpBtn.setText(!isVisible ? "▼ Сховати мережу" : "⚙ Налаштування мережі");
+        }
+    }
+
+    @FXML
+    public void onToggleRegIpSettings() {
+        if (regIpSettingsBox != null && regToggleIpBtn != null) {
+            boolean isVisible = regIpSettingsBox.isVisible();
+            regIpSettingsBox.setVisible(!isVisible);
+            regIpSettingsBox.setManaged(!isVisible);
+            regToggleIpBtn.setText(!isVisible ? "▼ Сховати мережу" : "⚙ Налаштування мережі");
+        }
     }
 }

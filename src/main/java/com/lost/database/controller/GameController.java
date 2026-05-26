@@ -104,6 +104,7 @@ public class GameController {
     private Image antennaImage; // The big tower on the map
     private Image itemAntennaImage; // The small part for the inventory
     private Image itemMedkitImage; // Medkit icon
+    private Image spikesImage;
 
     // NPC Portraits
     private Image jackPortrait;
@@ -164,6 +165,7 @@ public class GameController {
     private Image teleportSprite;
     private Image hatchSprite;
     private Image terminalBgSprite;
+    private Image terminalPasswordPanelImage;
     private Image bunkerTileset;
     private Image bunkerWallBg;
     private boolean canInteractTeleport = false;
@@ -210,6 +212,8 @@ public class GameController {
     private double damageFlashTimer = 0;
     private double sanity = 100.0;
     private double gameElapsedTime = 0; // Час гри в секундах (для score)
+    private double attackTimer = 0.0;
+    private java.util.Set<Integer> locallyKilledEnemies = new java.util.HashSet<>();
     private Image[] ghostFrames; // 6 frames: sprite_0..5.png (facing left)
 
     // Simple HUD colors
@@ -275,6 +279,7 @@ public class GameController {
         antennaImage = safeLoad("/images/radio_tower.png");
         itemAntennaImage = safeLoad("/images/item_antenna.png");
         itemMedkitImage = safeLoad("/images/item_medkit.png");
+        spikesImage = safeLoad("/images/jungle_spikes.png");
 
         // NPC Portraits
         jackPortrait = safeLoad("/assets/sprites/sayid_serious.png");
@@ -289,6 +294,7 @@ public class GameController {
         teleportSprite = safeLoad("/assets/sprites/teleport.png");
         hatchSprite = safeLoad("/assets/sprites/hatch.png");
         terminalBgSprite = safeLoad("/assets/sprites/terminal.png");
+        terminalPasswordPanelImage = safeLoad("/images/terminal_password_panel.png");
 
         // Load ghost animation frames (facing left)
         ghostFrames = new Image[6];
@@ -362,6 +368,11 @@ public class GameController {
         gameCanvas.setFocusTraversable(true);
         gameCanvas.setOnKeyPressed(this::handleKeyPressed);
         gameCanvas.setOnKeyReleased(this::handleKeyReleased);
+        gameCanvas.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                triggerAttack();
+            }
+        });
 
         // Start game loop
         gameLoop =
@@ -548,7 +559,7 @@ public class GameController {
                 if (jungleMap.getTile(x, y) == TileType.ENEMY_PATROL) {
                     double px = x * TILE_SIZE;
                     double py = (y) * TILE_SIZE - TILE_SIZE;
-                    enemies.add(new Enemy(px, py, px - 3 * TILE_SIZE, px + 3 * TILE_SIZE));
+                    enemies.add(new Enemy(px, py, px - 3 * TILE_SIZE, px + 3 * TILE_SIZE, false));
                     jungleMap.setTile(x, y, null);
                     foundAny = true;
                 }
@@ -586,20 +597,28 @@ public class GameController {
 
         switch (level) {
             case 1:
-                // level 1
+                // level 1 (5 ghosts)
                 enemies.add(
                         new Enemy(15 * TILE_SIZE, 6 * TILE_SIZE, 12 * TILE_SIZE, 22 * TILE_SIZE));
                 enemies.add(
+                        new Enemy(25 * TILE_SIZE, 4 * TILE_SIZE, 20 * TILE_SIZE, 30 * TILE_SIZE));
+                enemies.add(
                         new Enemy(35 * TILE_SIZE, 5 * TILE_SIZE, 30 * TILE_SIZE, 45 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(45 * TILE_SIZE, 6 * TILE_SIZE, 40 * TILE_SIZE, 50 * TILE_SIZE));
                 enemies.add(
                         new Enemy(55 * TILE_SIZE, 7 * TILE_SIZE, 50 * TILE_SIZE, 65 * TILE_SIZE));
                 break;
             case 2:
-                // level 2
+                // level 2 (7 ghosts)
                 enemies.add(
                         new Enemy(10 * TILE_SIZE, 4 * TILE_SIZE, 5 * TILE_SIZE, 20 * TILE_SIZE));
                 enemies.add(
+                        new Enemy(18 * TILE_SIZE, 5 * TILE_SIZE, 14 * TILE_SIZE, 22 * TILE_SIZE));
+                enemies.add(
                         new Enemy(25 * TILE_SIZE, 3 * TILE_SIZE, 20 * TILE_SIZE, 35 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(33 * TILE_SIZE, 4 * TILE_SIZE, 28 * TILE_SIZE, 38 * TILE_SIZE));
                 enemies.add(
                         new Enemy(40 * TILE_SIZE, 5 * TILE_SIZE, 35 * TILE_SIZE, 50 * TILE_SIZE));
                 enemies.add(
@@ -608,8 +627,10 @@ public class GameController {
                         new Enemy(62 * TILE_SIZE, 6 * TILE_SIZE, 58 * TILE_SIZE, 68 * TILE_SIZE));
                 break;
             case 3:
-                // level 3 (hardest)
+                // level 3 (9 ghosts)
                 enemies.add(new Enemy(8 * TILE_SIZE, 3 * TILE_SIZE, 3 * TILE_SIZE, 15 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(14 * TILE_SIZE, 4 * TILE_SIZE, 10 * TILE_SIZE, 18 * TILE_SIZE));
                 enemies.add(
                         new Enemy(20 * TILE_SIZE, 5 * TILE_SIZE, 15 * TILE_SIZE, 28 * TILE_SIZE));
                 enemies.add(
@@ -617,11 +638,28 @@ public class GameController {
                 enemies.add(
                         new Enemy(40 * TILE_SIZE, 6 * TILE_SIZE, 35 * TILE_SIZE, 48 * TILE_SIZE));
                 enemies.add(
+                        new Enemy(45 * TILE_SIZE, 5 * TILE_SIZE, 40 * TILE_SIZE, 50 * TILE_SIZE));
+                enemies.add(
                         new Enemy(50 * TILE_SIZE, 4 * TILE_SIZE, 45 * TILE_SIZE, 55 * TILE_SIZE));
                 enemies.add(
                         new Enemy(58 * TILE_SIZE, 3 * TILE_SIZE, 53 * TILE_SIZE, 63 * TILE_SIZE));
                 enemies.add(
                         new Enemy(65 * TILE_SIZE, 5 * TILE_SIZE, 60 * TILE_SIZE, 70 * TILE_SIZE));
+                break;
+            case 4:
+                // level 4 (6 ghosts protecting the bunker terminal hallway)
+                enemies.add(
+                        new Enemy(6 * TILE_SIZE, 14 * TILE_SIZE, 3 * TILE_SIZE, 10 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(14 * TILE_SIZE, 13 * TILE_SIZE, 10 * TILE_SIZE, 18 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(20 * TILE_SIZE, 14 * TILE_SIZE, 16 * TILE_SIZE, 24 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(28 * TILE_SIZE, 13 * TILE_SIZE, 24 * TILE_SIZE, 32 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(36 * TILE_SIZE, 14 * TILE_SIZE, 32 * TILE_SIZE, 40 * TILE_SIZE));
+                enemies.add(
+                        new Enemy(42 * TILE_SIZE, 13 * TILE_SIZE, 38 * TILE_SIZE, 45 * TILE_SIZE));
                 break;
         }
     }
@@ -657,6 +695,42 @@ public class GameController {
         }
     }
 
+    private void triggerAttack() {
+        if (attackTimer > 0 || gameOver || isPaused || isDialogueActive || isTerminalActive) return;
+        attackTimer = 0.15;
+        
+        // Attack hit check
+        double centerX = player.getX() + PLAYER_W / 2.0;
+        double centerY = player.getY() + PLAYER_H / 2.0;
+        
+        for (int i = 0; i < enemies.size(); i++) {
+            Enemy enemy = enemies.get(i);
+            if (enemy.isDead) continue;
+            
+            double enemyCenterX = enemy.x + enemy.w / 2.0;
+            double enemyCenterY = enemy.y + enemy.h / 2.0;
+            double dx = enemyCenterX - centerX;
+            double dy = Math.abs(enemyCenterY - centerY);
+            
+            boolean inDirection = facingRight ? (dx > -20 && dx < 110) : (dx < 20 && dx > -110);
+            if (inDirection && dy < 60) {
+                // Connecting hit
+                enemy.health -= 50;
+                if (enemy.health <= 0) {
+                    enemy.isDead = true;
+                    locallyKilledEnemies.add(i);
+                    System.out.println("[Attack] Killed enemy at index " + i);
+                } else {
+                    // Knock back physical enemies slightly on hit
+                    if (!enemy.isGhost) {
+                        enemy.x += facingRight ? 25 : -25;
+                    }
+                    System.out.println("[Attack] Hit enemy at index " + i + " health=" + enemy.health);
+                }
+            }
+        }
+    }
+
     // --- INPUT ---
     private void handleKeyPressed(KeyEvent e) {
         if (gameOver) {
@@ -670,6 +744,12 @@ public class GameController {
             return;
         }
 
+        // Toggle God Mode cheat
+        if (e.getCode() == KeyCode.G) {
+            player.setGodMode(!player.isGodMode());
+            System.out.println("God Mode: " + player.isGodMode());
+        }
+
         if (levelComplete) {
             if (e.getCode() == KeyCode.ENTER || e.getCode() == KeyCode.SPACE) loadNextLevel();
             return;
@@ -677,7 +757,10 @@ public class GameController {
 
         // Intercept input for Terminal
         if (isTerminalActive) {
-            if (e.getCode() == KeyCode.BACK_SPACE) {
+            if (e.getCode() == KeyCode.ESCAPE || e.getCode() == KeyCode.E) {
+                // Exit terminal view
+                isTerminalActive = false;
+            } else if (e.getCode() == KeyCode.BACK_SPACE) {
                 if (terminalInput.length() > 0) {
                     terminalInput.setLength(terminalInput.length() - 1);
                 }
@@ -692,9 +775,6 @@ public class GameController {
                     terminalErrorTimer = 1.5;
                     terminalInput.setLength(0); // clear input
                 }
-            } else if (e.getCode() == KeyCode.ESCAPE) {
-                // Exit terminal view
-                isTerminalActive = false;
             } else {
                 String text = e.getText();
                 if (text != null && text.matches("[0-9 ]")) {
@@ -710,6 +790,10 @@ public class GameController {
                 advanceDialogue();
             }
             return; // Block other inputs while dialogue is active
+        }
+
+        if (e.getCode() == KeyCode.F) {
+            triggerAttack();
         }
 
         keys.add(e.getCode());
@@ -759,6 +843,7 @@ public class GameController {
         // Dash cooldown
         if (dashCooldown > 0) dashCooldown -= dt;
         if (landingTimer > 0) landingTimer -= dt;
+        if (attackTimer > 0) attackTimer -= dt;
         gameElapsedTime += dt; // Відстежуємо час гри
 
         // Update damage cooldown
@@ -850,15 +935,15 @@ public class GameController {
 
         // Fall into void = damage + respawn
         if (player.getY() > jungleMap.getHeight() * TILE_SIZE + 100) {
-            player.takeDamage(25);
+            player.takeDamage(100); // Instant death / extremely high fall damage
             damageFlashTimer = 0.3;
             player.resetToSpawn();
             jumpsUsed = 0;
         }
 
         // Hazard check (spikes)
-        if (isTouchingHazard()) {
-            if (player.takeDamage(20)) {
+        if (isTouchingHazard() && !player.isGodMode()) {
+            if (player.takeDamage(50)) { // 50% HP damage for spikes
                 damageFlashTimer = 0.3;
                 player.resetToSpawn();
                 jumpsUsed = 0;
@@ -872,10 +957,12 @@ public class GameController {
             return;
         }
 
-        // Update enemies
+        // Update enemies (fully synchronized via NTP system time)
+        double systemGameTime = System.currentTimeMillis() / 1000.0;
         for (Enemy enemy : enemies) {
-            enemy.update(dt, jungleMap, TILE_SIZE);
-            if (!player.isInvincible()
+            if (enemy.isDead) continue;
+            enemy.update(dt, jungleMap, TILE_SIZE, systemGameTime);
+            if (!player.isInvincible() && !player.isGodMode()
                     && rectsOverlap(
                             player.getX(),
                             player.getY(),
@@ -886,21 +973,21 @@ public class GameController {
                             enemy.w,
                             enemy.h)) {
                 if (enemy.isGhost) {
-                    sanity -= 50 * dt; // Increased sanity drain (dies in 2 seconds instead of 5)
+                    sanity -= 90 * dt; // Rapid sanity drain in contact with ghosts
                     if (sanity <= 0) {
                         sanity = 0;
                         gameOver = true;
                         gameOverTimer = 0;
                     }
                     // Ghosts now also do physical damage and knockback
-                    if (player.takeDamage(10)) {
+                    if (player.takeDamage(25)) { // Doubled damage
                         damageFlashTimer = 0.3;
                         double knockDir = (player.getX() < enemy.x) ? -1 : 1;
                         player.setVx(knockDir * 200);
                         player.setVy(-200);
                         player.setGrounded(false);
                     }
-                } else if (player.takeDamage(15)) {
+                } else if (player.takeDamage(35)) { // Highly punishing physical enemy damage
                     damageFlashTimer = 0.3;
                     double knockDir = (player.getX() < enemy.x) ? -1 : 1;
                     player.setVx(knockDir * 300);
@@ -992,8 +1079,8 @@ public class GameController {
             if (player.getX() >= mapRightEdge) {
                 if (currentLevel == 2) {
                     // level 2 waits for teleport 'E' instead of edge walk, so don't auto-complete
-                } else if (currentLevel == 3) {
-                    // level 3 waits for hatch 'E', so don't auto-complete
+                } else if (currentLevel == 3 || currentLevel == 4) {
+                    // level 3 and 4 waiting for manual trigger
                 } else {
                     missionComplete = true;
                     levelComplete = true;
@@ -1017,12 +1104,25 @@ public class GameController {
         // --- MULTIPLAYER SYNC ---
         if (multiplayerService.getCurrentSessionId() != null) {
             multiplayerSyncTimer += dt;
-            if (multiplayerSyncTimer >= 0.1) {
+            if (multiplayerSyncTimer >= 0.2) {
                 multiplayerSyncTimer = 0;
                 int dir = facingRight ? 1 : -1;
-                multiplayerService.syncPosition(player.getX(), player.getY(), player.getHealth(), dir, animState.name());
+                String animStateStr = animState.name();
+                if (!locallyKilledEnemies.isEmpty()) {
+                    StringBuilder sb = new StringBuilder(animState.name());
+                    sb.append(":");
+                    boolean first = true;
+                    for (Integer id : locallyKilledEnemies) {
+                        if (!first) sb.append(",");
+                        sb.append(id);
+                        first = false;
+                    }
+                    animStateStr = sb.toString();
+                }
+                multiplayerService.syncPosition(player.getX(), player.getY(), player.getHealth(), dir, animStateStr);
+                multiplayerService.fetchSessionStateAsync();
                 
-                List<java.util.Map<String, String>> state = multiplayerService.getSessionState();
+                List<java.util.Map<String, String>> state = multiplayerService.getLastCachedState();
                 long myId = com.lost.database.infrastructure.OnlineService.getInstance().getOnlinePlayerId();
                 
                 remotePlayers.removeIf(rp -> {
@@ -1040,6 +1140,7 @@ public class GameController {
                     com.lost.database.game.entity.RemotePlayer rp = remotePlayers.stream().filter(r -> r.getPlayerId() == pid).findFirst().orElse(null);
                     if (rp == null) {
                         rp = new com.lost.database.game.entity.RemotePlayer(pid);
+                        rp.setSprites(playerIdleGif, playerRunGif);
                         remotePlayers.add(rp);
                     }
                     
@@ -1049,9 +1150,25 @@ public class GameController {
                     boolean alive = Boolean.parseBoolean(p.getOrDefault("alive", "true"));
                     int direction = Integer.parseInt(p.getOrDefault("direction", "1"));
                     String aState = p.getOrDefault("animationState", "IDLE");
+                    String parsedAnimState = aState;
+                    if (aState.contains(":")) {
+                        String[] parts = aState.split(":");
+                        parsedAnimState = parts[0];
+                        if (parts.length > 1) {
+                            String[] deadIds = parts[1].split(",");
+                            for (String idStr : deadIds) {
+                                try {
+                                    int deadIdx = Integer.parseInt(idStr.trim());
+                                    if (deadIdx >= 0 && deadIdx < enemies.size()) {
+                                        enemies.get(deadIdx).isDead = true;
+                                    }
+                                } catch (NumberFormatException ignored) {}
+                            }
+                        }
+                    }
                     String uname = p.getOrDefault("username", "Player " + pid);
                     
-                    rp.updateState(px, py, hp, alive, direction, aState);
+                    rp.updateState(px, py, hp, alive, direction, parsedAnimState);
                     rp.setUsername(uname);
                 }
             }
@@ -1081,21 +1198,119 @@ public class GameController {
         if (isTerminalActive) {
             gc.setFill(Color.BLACK);
             gc.fillRect(0, 0, canvasW, canvasH);
-            if (isValidImage(terminalBgSprite)) {
+            
+            if (isValidImage(terminalPasswordPanelImage)) {
+                gc.drawImage(terminalPasswordPanelImage, 0, 0, canvasW, canvasH);
+            } else if (isValidImage(terminalBgSprite)) {
                 gc.drawImage(terminalBgSprite, 0, 0, canvasW, canvasH);
             }
             
-            // Draw retro text
-            gc.setFont(Font.font("Monospace", FontWeight.BOLD, 24));
+            // Apply a sci-fi overlay (dark scanlines/tint)
+            gc.setFill(Color.rgb(0, 20, 10, 0.45));
+            gc.fillRect(0, 0, canvasW, canvasH);
+            
+            // Draw a high-tech glassmorphic display box shifted to the top half to prevent blocking background keypad
+            double boxW = 500;
+            double boxH = 200;
+            double boxX = (canvasW - boxW) / 2;
+            double boxY = 40; // Shift to top!
+            
+            // Outer glow
+            gc.setStroke(Color.rgb(0, 255, 100, 0.3));
+            gc.setLineWidth(6);
+            gc.strokeRoundRect(boxX, boxY, boxW, boxH, 15, 15);
+            
+            // Inner panel background
+            gc.setFill(Color.rgb(5, 15, 8, 0.85));
+            gc.fillRoundRect(boxX, boxY, boxW, boxH, 15, 15);
+            
+            // Panel border
+            gc.setStroke(Color.rgb(0, 255, 100, 0.8));
+            gc.setLineWidth(2);
+            gc.strokeRoundRect(boxX, boxY, boxW, boxH, 15, 15);
+            
+            // Decorative corners/brackets
+            gc.setStroke(Color.rgb(0, 255, 100, 0.9));
+            gc.setLineWidth(3);
+            // Top-left
+            gc.strokeLine(boxX, boxY + 20, boxX, boxY);
+            gc.strokeLine(boxX, boxY, boxX + 20, boxY);
+            // Top-right
+            gc.strokeLine(boxX + boxW - 20, boxY, boxX + boxW, boxY);
+            gc.strokeLine(boxX + boxW, boxY, boxX + boxW, boxY + 20);
+            // Bottom-left
+            gc.strokeLine(boxX, boxY + boxH - 20, boxX, boxY + boxH);
+            gc.strokeLine(boxX, boxY + boxH, boxX + 20, boxY + boxH);
+            // Bottom-right
+            gc.strokeLine(boxX + boxW - 20, boxY + boxH, boxX + boxW, boxY + boxH);
+            gc.strokeLine(boxX + boxW, boxY + boxH - 20, boxX + boxW, boxY + boxH);
+
+            // Draw glowing retro text inside the terminal box
+            gc.setTextAlign(TextAlignment.CENTER);
             
             if (terminalError) {
-                gc.setFill(Color.RED);
-                gc.fillText("> SYSTEM FAILURE", canvasW / 2 - 100, canvasH / 2 - 20);
+                // Glow effect for error
+                gc.setFill(Color.rgb(255, 50, 50, 0.2));
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 28));
+                gc.fillText("ACCESS DENIED", canvasW / 2 + 2, boxY + 62);
+                
+                gc.setFill(Color.rgb(255, 50, 50));
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 28));
+                gc.fillText("ACCESS DENIED", canvasW / 2, boxY + 60);
+                
+                gc.setFont(Font.font("Monospace", FontWeight.NORMAL, 14));
+                gc.setFill(Color.rgb(255, 100, 100));
+                gc.fillText("INVALID KEY SEQUENCE DETECTED", canvasW / 2, boxY + 110);
+                gc.fillText("RESETTING DECRYPTION LOCKS...", canvasW / 2, boxY + 150);
             } else {
-                gc.setFill(Color.rgb(50, 255, 50));
-                gc.fillText("> ENTER SEQUENCE:", canvasW / 2 - 120, canvasH / 2 - 40);
-                gc.fillText("> " + terminalInput.toString() + "_", canvasW / 2 - 120, canvasH / 2 + 10);
+                // Header
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 16));
+                gc.setFill(Color.rgb(0, 255, 100, 0.7));
+                gc.fillText("DHARMATECH MAIN FRAME v4.815", canvasW / 2, boxY + 30);
+                
+                // Prompt
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 20));
+                gc.setFill(Color.rgb(0, 255, 100));
+                gc.fillText("ENTER SECURITY PROTOCOL SEQUENCE", canvasW / 2, boxY + 70);
+                
+                // Input box background
+                double inputW = 400;
+                double inputH = 50;
+                double inputX = (canvasW - inputW) / 2;
+                double inputY = boxY + 95;
+                gc.setFill(Color.rgb(0, 40, 15, 0.5));
+                gc.fillRoundRect(inputX, inputY, inputW, inputH, 5, 5);
+                gc.setStroke(Color.rgb(0, 255, 100, 0.5));
+                gc.setLineWidth(1);
+                gc.strokeRoundRect(inputX, inputY, inputW, inputH, 5, 5);
+                
+                // Input text
+                gc.setFont(Font.font("Monospace", FontWeight.BOLD, 24));
+                
+                // Blinking cursor
+                String cursor = (System.currentTimeMillis() % 1000 < 500) ? "_" : "";
+                String displayText = "> " + terminalInput.toString() + cursor;
+                
+                // Text glow shadow
+                gc.setFill(Color.rgb(0, 255, 100, 0.3));
+                gc.fillText(displayText, canvasW / 2 + 2, inputY + 33 + 2);
+                
+                gc.setFill(Color.rgb(100, 255, 180));
+                gc.fillText(displayText, canvasW / 2, inputY + 33);
+                
+                // Footer hint
+                gc.setFont(Font.font("Monospace", FontWeight.NORMAL, 11));
+                gc.setFill(Color.rgb(0, 255, 100, 0.5));
+                gc.fillText("PRESS [ENTER] TO SUBMIT  |  [ESC] OR [E] TO CLOSE", canvasW / 2, boxY + 180);
             }
+
+            // High-visibility Exit prompt at the bottom of the screen
+            gc.setFont(Font.font("System", FontWeight.BOLD, 14));
+            gc.setFill(Color.rgb(0, 255, 100, 0.95));
+            gc.fillText("НАТИСНИ [E] АБО [ESC] ЩОБ ВИЙТИ З ТЕРМІНАЛУ", canvasW / 2, canvasH - 30);
+            
+            // Reset text alignment for other drawing code
+            gc.setTextAlign(TextAlignment.LEFT);
             return;
         }
 
@@ -1137,6 +1352,23 @@ public class GameController {
             for (int[][] layer : jungleMap.getTmxLayers()) {
                 renderer.render(gc, layer, activeTileset, cameraX, cameraY, canvasW, canvasH, srcSize, srcCols);
             }
+
+            // Draw any custom programmatic grid tiles (like SPIKES) on top of the TMX layers
+            int startTileX = Math.max(0, (int) (cameraX / TILE_SIZE) - 1);
+            int startTileY = Math.max(0, (int) (cameraY / TILE_SIZE) - 1);
+            int endTileX = Math.min(jungleMap.getWidth(), startTileX + (int) (canvasW / TILE_SIZE) + 2);
+            int endTileY = Math.min(jungleMap.getHeight(), startTileY + (int) (canvasH / TILE_SIZE) + 2);
+
+            for (int mx = startTileX; mx < endTileX; mx++) {
+                for (int my = startTileY; my < endTileY; my++) {
+                    TileType t = jungleMap.getTile(mx, my);
+                    if (t == TileType.SPIKES) {
+                        double destX = mx * TILE_SIZE - cameraX;
+                        double destY = my * TILE_SIZE - cameraY;
+                        drawSpikes(gc, destX, destY);
+                    }
+                }
+            }
             // Draw cockpit wreckage on level 1 only
             if (currentLevel == 1 && !missionComplete) {
                 double cockpitDrawX = jungleMap.getCockpitX() * TILE_SIZE - cameraX;
@@ -1158,18 +1390,6 @@ public class GameController {
                         && antennaDrawY < canvasH + 128) {
                     drawAntenna(gc, antennaDrawX, antennaDrawY);
                 }
-                
-                // Draw Teleport at end of Level 2
-                double mapRightEdge = (jungleMap.getWidth() - 12) * TILE_SIZE;
-                double telX = mapRightEdge - cameraX;
-                // Place it at player's ground level or fixed height
-                double telY = jungleMap.getHeight() * TILE_SIZE - (TILE_SIZE * 3) - cameraY;
-                if (isValidImage(teleportSprite)) {
-                    gc.drawImage(teleportSprite, telX, telY - 32, 64, 64);
-                } else {
-                    gc.setFill(Color.CYAN);
-                    gc.fillRect(telX, telY, 64, 64);
-                }
             }
             // Draw Hatch on Level 3
             if (currentLevel == 3) {
@@ -1177,7 +1397,7 @@ public class GameController {
                 double hatchW = 128;
                 double hatchH = 64;
                 double hatchX = 55 * TILE_SIZE - cameraX - 32; // Center it over the tile
-                double hatchY = 10 * TILE_SIZE - cameraY - hatchH; // Rest exactly on the grass
+                double hatchY = 10 * TILE_SIZE - cameraY - hatchH + 16; // Rest exactly on the grass
                 if (isValidImage(hatchSprite)) {
                     gc.drawImage(hatchSprite, hatchX, hatchY, hatchW, hatchH);
                 } else {
@@ -1187,13 +1407,20 @@ public class GameController {
             }
             // Draw Terminal on Level 4
             if (currentLevel == 4) {
-                double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE - cameraX;
-                double terminalComputerY = 14 * TILE_SIZE - cameraY; // approx ground level
+                double terminalSize = 128;
+                double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE - cameraX - (terminalSize / 2.0) + 16;
+                // Lift Y up so that the bottom of the 128px image rests exactly on the floor at row 12!
+                double terminalComputerY = 12 * TILE_SIZE - cameraY - 112; 
+                
                 if (isValidImage(terminalBgSprite)) {
-                    gc.drawImage(terminalBgSprite, terminalComputerX, terminalComputerY, 64, 64);
+                    gc.save();
+                    gc.translate(terminalComputerX + (terminalSize / 2.0), terminalComputerY + (terminalSize / 2.0));
+                    gc.scale(-1, 1);
+                    gc.drawImage(terminalBgSprite, -(terminalSize / 2.0), -(terminalSize / 2.0), terminalSize, terminalSize);
+                    gc.restore();
                 } else {
                     gc.setFill(Color.GREEN);
-                    gc.fillRect(terminalComputerX, terminalComputerY, 64, 64);
+                    gc.fillRect(terminalComputerX, terminalComputerY, terminalSize, terminalSize);
                 }
             }
         } else {
@@ -1264,6 +1491,7 @@ public class GameController {
 
         // 5. Draw enemies
         for (Enemy enemy : enemies) {
+            if (enemy.isDead) continue;
             double ex = enemy.x - cameraX;
             double ey = enemy.y - cameraY;
             if (ex < -64 || ex > canvasW + 64 || ey < -64 || ey > canvasH + 64) continue;
@@ -1316,6 +1544,24 @@ public class GameController {
 
         // 6. Draw player
         drawPlayer(gc, canvasW, canvasH);
+
+        // Draw attack visual swipe/slash crescent
+        if (attackTimer > 0) {
+            double playerScreenX = player.getX() - cameraX;
+            double playerScreenY = player.getY() - cameraY;
+            double centerX = playerScreenX + PLAYER_W / 2.0;
+            double centerY = playerScreenY + PLAYER_H / 2.0;
+            
+            gc.save();
+            gc.setStroke(Color.rgb(200, 255, 255, 0.85));
+            gc.setLineWidth(4);
+            if (facingRight) {
+                gc.strokeArc(centerX - 10, centerY - 45, 90, 90, -60, 120, javafx.scene.shape.ArcType.OPEN);
+            } else {
+                gc.strokeArc(centerX - 80, centerY - 45, 90, 90, 120, 120, javafx.scene.shape.ArcType.OPEN);
+            }
+            gc.restore();
+        }
 
         // 8. Draw HUD
         drawHUD(gc, canvasW, canvasH);
@@ -1432,14 +1678,18 @@ public class GameController {
     }
 
     private void drawSpikes(GraphicsContext gc, double destX, double destY) {
-        gc.setFill(Color.rgb(150, 50, 50));
-        // Draw triangle spikes
-        for (int i = 0; i < 3; i++) {
-            double sx = destX + i * 11;
-            gc.fillPolygon(
-                    new double[] {sx + 1, sx + 5.5, sx + 10},
-                    new double[] {destY + TILE_SIZE, destY + 4, destY + TILE_SIZE},
-                    3);
+        if (isValidImage(spikesImage)) {
+            gc.drawImage(spikesImage, destX, destY, TILE_SIZE, TILE_SIZE);
+        } else {
+            gc.setFill(Color.rgb(150, 50, 50));
+            // Draw triangle spikes
+            for (int i = 0; i < 3; i++) {
+                double sx = destX + i * 11;
+                gc.fillPolygon(
+                        new double[] {sx + 1, sx + 5.5, sx + 10},
+                        new double[] {destY + TILE_SIZE, destY + 4, destY + TILE_SIZE},
+                        3);
+            }
         }
     }
 
@@ -1448,7 +1698,7 @@ public class GameController {
             gc.drawImage(
                     cockpitImage,
                     destX - TILE_SIZE,
-                    destY - TILE_SIZE,
+                    destY - TILE_SIZE + 48,
                     TILE_SIZE * 3,
                     TILE_SIZE * 3);
         } else {
@@ -1743,9 +1993,21 @@ public class GameController {
         gc.setFont(Font.font("System", 10));
         gc.setFill(Color.rgb(180, 180, 180, 0.4));
         gc.fillText(
-                "A/D - рух | SPACE - стрибок | SHIFT - ривок | E - взаємодія | ESC - пауза",
+                "A/D - рух | SPACE - стрибок | SHIFT - ривок | E - взаємодія | ESC - пауза | G - чити",
                 dashX,
                 canvasH - 8);
+
+        // God Mode indicator
+        if (player.isGodMode()) {
+            gc.save();
+            // Pulse animation based on system time
+            double alpha = 0.5 + 0.5 * Math.sin(System.currentTimeMillis() / 200.0);
+            gc.setFont(Font.font("Georgia", FontWeight.BOLD, 16));
+            gc.setFill(Color.color(0.0, 1.0, 0.0, alpha));
+            gc.setTextAlign(TextAlignment.RIGHT);
+            gc.fillText("[GOD MODE ACTIVE]", canvasW - 20, 30);
+            gc.restore();
+        }
 
         gc.restore();
     }
@@ -2011,14 +2273,23 @@ public class GameController {
 
         if (player == null) {
             player = new GamePlayer(0, spawnX, spawnY);
+            player.setSpawnPosition(spawnX, spawnY);
+            player.fullReset();
+            sanity = 100;
+        } else {
+            player.setSpawnPosition(spawnX, spawnY);
+            if (levelNum > 1 && player.getHealth() > 0) {
+                player.resetToSpawn();
+            } else {
+                player.fullReset();
+                sanity = 100;
+            }
         }
-        player.setSpawnPosition(spawnX, spawnY);
-        player.fullReset();
-
-        sanity = 100;
         jumpsUsed = 0;
         isDashing = false;
         dashCooldown = 0;
+        attackTimer = 0;
+        locallyKilledEnemies.clear();
         gameOver = false;
         gameOverTimer = 0;
         levelComplete = false;
@@ -2072,15 +2343,18 @@ public class GameController {
         int minTy = (int) Math.floor(top / TILE_SIZE);
         int maxTy = (int) Math.floor((bottom - 0.01) / TILE_SIZE);
 
+        int centerTx = (int) Math.floor((px + PLAYER_W / 2.0) / TILE_SIZE);
+
         for (int tx = minTx; tx <= maxTx; tx++) {
             for (int ty = minTy; ty <= maxTy; ty++) {
                 if (jungleMap.isSlope(tx, ty)) {
-                    // For slopes, check if the player's feet are below the slope surface
-                    double playerCenterX = px + PLAYER_W / 2.0;
-                    double slopeHeight = jungleMap.getSlopeHeight(tx, ty, playerCenterX, TILE_SIZE);
-                    double slopeTop = (ty + 1) * TILE_SIZE - slopeHeight;
-                    if (bottom > slopeTop) {
-                        return true;
+                    if (tx == centerTx) {
+                        double playerCenterX = px + PLAYER_W / 2.0;
+                        double slopeHeight = jungleMap.getSlopeHeight(tx, ty, playerCenterX, TILE_SIZE);
+                        double slopeTop = (ty + 1) * TILE_SIZE - slopeHeight;
+                        if (bottom > slopeTop) {
+                            return true;
+                        }
                     }
                 } else if (jungleMap.isSolid(tx, ty)) {
                     return true;
@@ -2127,6 +2401,34 @@ public class GameController {
                         }
                     }
                     return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean checkSpikesCollision() {
+        double px = player.getX();
+        double py = player.getY();
+        double pw = PLAYER_W;
+        double ph = PLAYER_H;
+
+        int minTx = (int) Math.floor(px / TILE_SIZE);
+        int maxTx = (int) Math.floor((px + pw - 0.01) / TILE_SIZE);
+        int minTy = (int) Math.floor(py / TILE_SIZE);
+        int maxTy = (int) Math.floor((py + ph - 0.01) / TILE_SIZE);
+
+        for (int tx = minTx; tx <= maxTx; tx++) {
+            for (int ty = minTy; ty <= maxTy; ty++) {
+                if (jungleMap.isHazard(tx, ty)) {
+                    // Inset the hitbox slightly horizontally, and only check the bottom 40% of the tile visually
+                    double spikeX = tx * TILE_SIZE + 4;
+                    double spikeH = TILE_SIZE * 0.4;
+                    double spikeY = ty * TILE_SIZE + TILE_SIZE - spikeH;
+                    double spikeW = TILE_SIZE - 8;
+                    if (rectsOverlap(px, py, pw, ph, spikeX, spikeY, spikeW, spikeH)) {
+                        return true;
+                    }
                 }
             }
         }
@@ -2253,7 +2555,8 @@ public class GameController {
         boolean canInteractTerminalComputer = false;
         if (currentLevel == 4 && !isTerminalActive) {
             double terminalComputerX = (jungleMap.getWidth() / 2.0) * TILE_SIZE;
-            if (Math.abs(player.getX() - terminalComputerX) < 100) {
+            double terminalComputerY = 12 * TILE_SIZE;
+            if (Math.abs(player.getX() - terminalComputerX) < 100 && Math.abs(player.getY() - terminalComputerY) < 150) {
                 canInteractTerminalComputer = true;
             }
         }
@@ -2305,7 +2608,7 @@ public class GameController {
                     PLAYER_W,
                     PLAYER_H,
                     tileX - 32,
-                    tileY - 32,
+                    tileY - 32 + 48,
                     TILE_SIZE + 64,
                     TILE_SIZE + 64)) {
                 player.addItem("transceiver");
@@ -2554,7 +2857,7 @@ public class GameController {
     private static class Enemy {
         double x, y;
         double w = 40, h = 40;
-        double speed = 80;
+        double speed = 150; // Doubled speed to prevent speedrunning
         boolean movingRight = true;
         double minX, maxX;
         boolean isGhost = true;
@@ -2562,17 +2865,26 @@ public class GameController {
         int animDirection = 1; // +1 forward, -1 backward (ping-pong)
         double animTimer = 0; // timer for switching frames
         static final double ANIM_SPEED = 0.4; // seconds per frame change
+        int health = 50; // HP
+        boolean isDead = false;
 
         Enemy(double x, double y, double minX, double maxX) {
+            this(x, y, minX, maxX, true);
+        }
+
+        Enemy(double x, double y, double minX, double maxX, boolean isGhost) {
             this.x = x;
             this.y = y;
             this.minX = minX;
             this.maxX = maxX;
+            this.isGhost = isGhost;
+            this.health = isGhost ? 50 : 100; // Ghosts take 1 hit (50 HP), physical takes 2 hits (100 HP)
+            this.isDead = false;
             // Each ghost gets a unique starting sprite
             this.spriteVariant = (int) (Math.abs(x * 7 + y * 13)) % 5;
         }
 
-        void update(double dt, JungleMap map, int tileSize) {
+        void update(double dt, JungleMap map, int tileSize, double gameTime) {
             // Animate: cycle through sprite variants
             animTimer += dt;
             if (animTimer >= ANIM_SPEED) {
@@ -2587,15 +2899,25 @@ public class GameController {
                 }
             }
 
-            double dx = speed * dt * (movingRight ? 1 : -1);
-            x += dx;
-
             if (isGhost) {
-                // Ghosts float freely — ignore walls, only respect patrol bounds
-                if (x >= maxX) movingRight = false;
-                if (x <= minX) movingRight = true;
-                // No gravity for ghosts
+                // Deterministic time-based position sync
+                double L = maxX - minX;
+                if (L > 0) {
+                    double totalTime = L / speed;
+                    double cycleTime = 2 * totalTime;
+                    double t = gameTime % cycleTime;
+                    if (t < totalTime) {
+                        x = minX + t * speed;
+                        movingRight = true;
+                    } else {
+                        x = maxX - (t - totalTime) * speed;
+                        movingRight = false;
+                    }
+                }
             } else {
+                double dx = speed * dt * (movingRight ? 1 : -1);
+                x += dx;
+
                 // Reverse at patrol boundaries or walls
                 if (x >= maxX || checkWall(x + w, y, map, tileSize)) {
                     movingRight = false;

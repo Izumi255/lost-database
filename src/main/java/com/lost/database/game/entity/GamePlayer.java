@@ -107,7 +107,18 @@ public class GamePlayer implements Serializable {
         }
     }
 
+    private boolean godMode = false;
+
+    public boolean isGodMode() {
+        return godMode;
+    }
+
+    public void setGodMode(boolean godMode) {
+        this.godMode = godMode;
+    }
+
     public boolean takeDamage(int amount) {
+        if (godMode) return false;
         if (damageCooldown > 0 || health <= 0) return false;
         health = Math.max(0, health - amount);
         damageCooldown = DAMAGE_COOLDOWN_TIME;

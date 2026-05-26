@@ -65,6 +65,10 @@ public class JungleMap implements Serializable {
                             grid[x][y] = TileType.SLOPE_LEFT;
                         } else if (tileId == 122) {
                             grid[x][y] = TileType.SLOPE_LEFT_2;
+                        } else if (tileId == 123) {
+                            grid[x][y] = TileType.SLOPE_RIGHT_GENTLE;
+                        } else if (tileId == 124) {
+                            grid[x][y] = TileType.SLOPE_RIGHT_GENTLE_2;
                         } else if (tileId == 90) {
                             grid[x][y] = TileType.SLOPE_RIGHT_2; // steep ascending
                         } else if (tileId == 91) {
@@ -78,23 +82,46 @@ public class JungleMap implements Serializable {
 
             this.spawnX = 2;
             this.spawnY = height - 5;
-            for (int sy = 0; sy < height; sy++) {
-                if (isSolid(2, sy)) {
-                    this.spawnY = Math.max(0, sy - 1);
+            for (int sy = height - 1; sy >= 6; sy--) {
+                if (isSolid(2, sy) && !isSolid(2, sy - 1)) {
+                    this.spawnY = sy - 1;
                     break;
                 }
             }
             this.cockpitX = 40;
             this.cockpitY = height - 5;
-            for (int sy = 0; sy < height; sy++) {
-                if (isSolid(40, sy)) {
-                    this.cockpitY = Math.max(0, sy - 1);
+            for (int sy = height - 1; sy >= 6; sy--) {
+                if (isSolid(40, sy) && !isSolid(40, sy - 1)) {
+                    this.cockpitY = sy - 1;
                     break;
                 }
             }
-            // Place cockpit tile on the grid so it renders
-            if (cockpitX >= 0 && cockpitY >= 0 && cockpitX < width && cockpitY < height) {
-                this.grid[cockpitX][cockpitY] = TileType.COCKPIT_WRECKAGE;
+            // Place cockpit tile on the grid so it renders (only on Level 1)
+            if (tmxPath != null && tmxPath.contains("level1.tmx")) {
+                if (cockpitX >= 0 && cockpitY >= 0 && cockpitX < width && cockpitY < height) {
+                    this.grid[cockpitX][cockpitY] = TileType.COCKPIT_WRECKAGE;
+                }
+            }
+
+            // Programmatically scatter spikes on each level to add challenge
+            if (tmxPath != null) {
+                if (tmxPath.contains("level1.tmx")) {
+                    placeSpikes(15, 18);
+                    placeSpikes(25, 27);
+                    placeSpikes(35, 37);
+                } else if (tmxPath.contains("level2.tmx")) {
+                    placeSpikes(12, 14);
+                    placeSpikes(22, 24);
+                    placeSpikes(32, 34);
+                } else if (tmxPath.contains("level3.tmx")) {
+                    placeSpikes(18, 21);
+                    placeSpikes(30, 33);
+                    placeSpikes(42, 45);
+                } else if (tmxPath.contains("level4.tmx")) {
+                    placeSpikes(8, 10);
+                    placeSpikes(18, 20);
+                    placeSpikes(28, 30);
+                }
             }
         } else {
             this.width = 30;
@@ -161,7 +188,9 @@ public class JungleMap implements Serializable {
                 || t == TileType.SLOPE_LEFT
                 || t == TileType.SLOPE_LEFT_2
                 || t == TileType.SLOPE_RIGHT
-                || t == TileType.SLOPE_RIGHT_2;
+                || t == TileType.SLOPE_RIGHT_2
+                || t == TileType.SLOPE_RIGHT_GENTLE
+                || t == TileType.SLOPE_RIGHT_GENTLE_2;
     }
 
     public boolean isSlope(int x, int y) {
@@ -169,7 +198,9 @@ public class JungleMap implements Serializable {
         return t == TileType.SLOPE_LEFT
                 || t == TileType.SLOPE_LEFT_2
                 || t == TileType.SLOPE_RIGHT
-                || t == TileType.SLOPE_RIGHT_2;
+                || t == TileType.SLOPE_RIGHT_2
+                || t == TileType.SLOPE_RIGHT_GENTLE
+                || t == TileType.SLOPE_RIGHT_GENTLE_2;
     }
 
     /**
@@ -189,6 +220,12 @@ public class JungleMap implements Serializable {
         } else if (t == TileType.SLOPE_LEFT_2) {
             // Second half of the gentle slope: 0.5 to 1.0 height
             return (tileSize / 2.0) + (fraction * (tileSize / 2.0));
+        } else if (t == TileType.SLOPE_RIGHT_GENTLE) {
+            // First half of gentle descending: 1.0 to 0.5 height
+            return (tileSize / 2.0) + ((1.0 - fraction) * (tileSize / 2.0));
+        } else if (t == TileType.SLOPE_RIGHT_GENTLE_2) {
+            // Second half of gentle descending: 0.5 to 0.0 height
+            return (1.0 - fraction) * (tileSize / 2.0);
         } else if (t == TileType.SLOPE_RIGHT) {
             // Steep descending: full height at left, zero at right (tile 91)
             return (1.0 - fraction) * tileSize;
@@ -213,5 +250,17 @@ public class JungleMap implements Serializable {
 
     public List<TmxMapLoader.TmxObject> getTmxObjects() {
         return tmxObjects;
+    }
+
+    private void placeSpikes(int startX, int endX) {
+        if (startX < 0 || endX >= width) return;
+        for (int x = startX; x <= endX; x++) {
+            for (int y = 1; y < height; y++) {
+                if (isSolid(x, y) && !isSolid(x, y - 1) && getTile(x, y) == TileType.GROUND) {
+                    this.grid[x][y - 1] = TileType.SPIKES;
+                    break;
+                }
+            }
+        }
     }
 }

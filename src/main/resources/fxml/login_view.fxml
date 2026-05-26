@@ -73,9 +73,19 @@
             <Label text="ПАРОЛЬ" styleClass="field-label" />
             <PasswordField fx:id="passwordField" promptText="Введіть пароль" />
 
+            <Region prefHeight="4" />
+
+            <Hyperlink fx:id="toggleIpBtn" text="⚙ Налаштування мережі" onAction="#onToggleIpSettings"
+                       style="-fx-text-fill: rgba(0,255,170,0.5); -fx-font-size: 11px; -fx-border-color: transparent;" />
+
+            <VBox fx:id="ipSettingsBox" spacing="8" visible="false" managed="false" alignment="CENTER_LEFT">
+                <Label text="IP АДРЕСА СЕРВЕРА" styleClass="field-label" />
+                <TextField fx:id="serverIpField" promptText="localhost або 26.4.16.99" />
+            </VBox>
+
             <Region prefHeight="6" />
             
-            <CheckBox fx:id="onlineLoginCheck" text="Увійти онлайн (сервер localhost:8080)" 
+            <CheckBox fx:id="onlineLoginCheck" text="Увійти онлайн через сервер" 
                       style="-fx-text-fill: rgba(255,255,255,0.7); -fx-font-size: 11px;" />
 
             <Region prefHeight="6" />
@@ -124,6 +134,16 @@
 
             <Label text="EMAIL" styleClass="field-label" />
             <TextField fx:id="regEmailField" promptText="Email (опціонально, для верифікації)" />
+
+            <Region prefHeight="4" />
+
+            <Hyperlink fx:id="regToggleIpBtn" text="⚙ Налаштування мережі" onAction="#onToggleRegIpSettings"
+                       style="-fx-text-fill: rgba(0,170,255,0.55); -fx-font-size: 11px; -fx-border-color: transparent;" />
+
+            <VBox fx:id="regIpSettingsBox" spacing="8" visible="false" managed="false" alignment="CENTER_LEFT">
+                <Label text="IP АДРЕСА СЕРВЕРА" styleClass="field-label" />
+                <TextField fx:id="regServerIpField" promptText="localhost або 26.4.16.99" />
+            </VBox>
 
             <!-- Поле коду верифікації (приховане) -->
             <TextField fx:id="verificationCodeField" promptText="Введіть 6-значний код з пошти"

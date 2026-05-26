@@ -10,11 +10,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.util.prefs.Preferences;
+
 /** HTTP клієнт для взаємодії з REST API сервером гри (port 8080). */
 public class ApiClient {
-    private static final String BASE_URL = "http://localhost:8080/api";
+    private String baseUrl;
     private final HttpClient client;
     private String jwtToken;
+    private static final String PREF_SERVER_IP = "server_ip";
 
     public ApiClient() {
         this.client =
@@ -22,6 +25,39 @@ public class ApiClient {
                         .connectTimeout(Duration.ofSeconds(10))
                         .version(HttpClient.Version.HTTP_1_1)
                         .build();
+
+        // Load saved server IP, default to 26.4.16.99
+        Preferences prefs = Preferences.userNodeForPackage(ApiClient.class);
+        String savedIp = prefs.get(PREF_SERVER_IP, "26.4.16.99");
+        setServerAddress(savedIp);
+    }
+
+    public void setServerAddress(String hostOrIp) {
+        if (hostOrIp == null || hostOrIp.trim().isEmpty()) {
+            hostOrIp = "26.4.16.99";
+        }
+        
+        String ipStr = hostOrIp.trim();
+        // Save to preferences
+        Preferences prefs = Preferences.userNodeForPackage(ApiClient.class);
+        prefs.put(PREF_SERVER_IP, ipStr);
+        
+        String clean = ipStr;
+        if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+            if (!clean.contains(":")) {
+                clean = clean + ":8080";
+            }
+            clean = "http://" + clean;
+        }
+        if (!clean.endsWith("/api")) {
+            clean = clean + "/api";
+        }
+        this.baseUrl = clean;
+    }
+
+    public String getServerAddress() {
+        Preferences prefs = Preferences.userNodeForPackage(ApiClient.class);
+        return prefs.get(PREF_SERVER_IP, "26.4.16.99");
     }
 
     public void setToken(String token) {
@@ -33,7 +69,7 @@ public class ApiClient {
     }
 
     private HttpRequest.Builder createRequestBuilder(String endpoint) {
-        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(BASE_URL + endpoint));
+        HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(baseUrl + endpoint));
         if (jwtToken != null && !jwtToken.isEmpty()) {
             builder.header("Authorization", "Bearer " + jwtToken);
         }
@@ -80,7 +116,7 @@ public class ApiClient {
 
             HttpResponse<String> response =
                     client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 return parseSimpleJsonMap(response.body());
             }
         } catch (Exception e) {
